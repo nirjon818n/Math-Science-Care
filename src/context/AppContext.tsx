@@ -1,0 +1,739 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import {
+  Student,
+  AttendanceRecord,
+  Folder,
+  Question,
+  CustomDocument,
+  SlidePresentation,
+  ActivityLog,
+  AppSettings,
+  ActivityType,
+  StudentStatus,
+  Exam,
+  ExamResult,
+} from '../types';
+import { StorageManager } from '../lib/storage';
+
+export interface ToastMessage {
+  id: string;
+  message: string;
+  type: 'success' | 'info' | 'warning' | 'error';
+}
+
+interface AppContextType {
+  currentSection: string;
+  setCurrentSection: (section: string) => void;
+  settings: AppSettings;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
+  students: Student[];
+  refreshStudents: () => void;
+  addStudent: (s: Omit<Student, 'id'>) => Student;
+  updateStudent: (s: Student) => void;
+  deleteStudent: (id: string) => void;
+  duplicateStudent: (id: string) => void;
+  bulkDeleteStudents: (ids: string[]) => void;
+  attendance: AttendanceRecord[];
+  saveAttendanceRecords: (date: string, records: Omit<AttendanceRecord, 'id' | 'timestamp'>[]) => void;
+  folders: Folder[];
+  addFolder: (name: string, type: 'question' | 'document', parentId: string | null) => void;
+  questions: Question[];
+  addQuestion: (q: Omit<Question, 'id' | 'createdAt'>) => Question;
+  updateQuestion: (q: Question) => void;
+  deleteQuestion: (id: string) => void;
+  duplicateQuestion: (id: string) => void;
+  documents: CustomDocument[];
+  addDocument: (d: Omit<CustomDocument, 'id' | 'lastEdited'>) => CustomDocument;
+  updateDocument: (d: CustomDocument) => void;
+  deleteDocument: (id: string) => void;
+  presentations: SlidePresentation[];
+  addPresentation: (p: Omit<SlidePresentation, 'id' | 'lastEdited'>) => SlidePresentation;
+  updatePresentation: (p: SlidePresentation) => void;
+  deletePresentation: (id: string) => void;
+  exams: Exam[];
+  examResults: ExamResult[];
+  addExam: (e: Omit<Exam, 'id'>) => Exam;
+  updateExam: (e: Exam) => void;
+  deleteExam: (id: string) => void;
+  saveExamResults: (examId: string, results: Omit<ExamResult, 'id'>[]) => void;
+  activities: ActivityLog[];
+  logAction: (module: string, action: string, details: string, type?: ActivityType) => void;
+  toasts: ToastMessage[];
+  showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
+  removeToast: (id: string) => void;
+  resetAllData: () => void;
+  // Auth gates
+  adminPassword: string;
+  setAdminPassword: (pw: string) => void;
+  logout: () => void;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [currentSection, setCurrentSection] = useState<string>('Dashboard');
+  const [settings, setSettings] = useState<AppSettings>(() => StorageManager.getSettings());
+  const [students, setStudents] = useState<Student[]>(() => StorageManager.getStudents());
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => StorageManager.getAttendance());
+  const [folders, setFolders] = useState<Folder[]>(() => StorageManager.getFolders());
+  const [questions, setQuestions] = useState<Question[]>(() => StorageManager.getQuestions());
+  const [documents, setDocuments] = useState<CustomDocument[]>(() => StorageManager.getDocuments());
+  const [presentations, setPresentations] = useState<SlidePresentation[]>(() => StorageManager.getPresentations());
+  const [exams, setExams] = useState<Exam[]>(() => StorageManager.getExams());
+  const [examResults, setExamResults] = useState<ExamResult[]>(() => StorageManager.getExamResults());
+  const [activities, setActivities] = useState<ActivityLog[]>(() => StorageManager.getActivities());
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Unique client ID to prevent self-echoes from Server-Sent Events sync
+  const clientId = useMemo(() => 'client-' + Math.random().toString(36).substr(2, 9), []);
+
+  const [adminPassword, setAdminPasswordState] = useState<string>('');
+
+  // Strict Security: Force lock / require password on every single reload or new tab
+  useEffect(() => {
+    // Immediate clean-up on mount/reload to prevent persistent logins
+    sessionStorage.removeItem('msc_admin_auth');
+    localStorage.removeItem('msc_admin_auth'); // Clean up old localStorage if present
+    setAdminPasswordState('');
+
+    const handleBeforeUnload = () => {
+      sessionStorage.removeItem('msc_admin_auth');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  const setAdminPassword = (pw: string) => {
+    setAdminPasswordState(pw);
+    if (pw) {
+      sessionStorage.setItem('msc_admin_auth', pw);
+    } else {
+      sessionStorage.removeItem('msc_admin_auth');
+    }
+  };
+
+  const logout = () => {
+    setAdminPassword('');
+  };
+
+  // Setup Server-Sent Events real-time sync with database.json on Node server
+  useEffect(() => {
+    if (adminPassword !== '2010636075') return;
+
+    // 1. Fetch initial state from database.json on server
+    const loadInitialData = async () => {
+      try {
+        const res = await fetch(`/api/data?auth=${adminPassword}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.students) { setStudents(data.students); StorageManager.saveStudents(data.students); }
+          if (data.attendance) { setAttendance(data.attendance); StorageManager.saveAttendance(data.attendance); }
+          if (data.folders) { setFolders(data.folders); StorageManager.saveFolders(data.folders); }
+          if (data.questions) { setQuestions(data.questions); StorageManager.saveQuestions(data.questions); }
+          if (data.documents) { setDocuments(data.documents); StorageManager.saveDocuments(data.documents); }
+          if (data.presentations) { setPresentations(data.presentations); StorageManager.savePresentations(data.presentations); }
+          if (data.exams) { setExams(data.exams); StorageManager.saveExams(data.exams); }
+          if (data.examResults) { setExamResults(data.examResults); StorageManager.saveExamResults(data.examResults); }
+          if (data.activities) { setActivities(data.activities); StorageManager.saveActivities(data.activities); }
+          if (data.settings) { setSettings(data.settings); StorageManager.saveSettings(data.settings); }
+        }
+      } catch (e) {
+        console.error("Failed to load database from server:", e);
+      }
+    };
+    loadInitialData();
+
+    // 2. Setup Server-Sent Events stream
+    const eventSource = new EventSource(`/api/sync/stream?auth=${adminPassword}&clientId=${clientId}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.reset) {
+          window.location.reload();
+          return;
+        }
+        
+        const { key, data, clientId: senderClientId } = payload;
+        if (senderClientId === clientId) return; // skip self-broadcasts
+
+        switch (key) {
+          case 'students':
+            setStudents(data);
+            StorageManager.saveStudents(data);
+            break;
+          case 'attendance':
+            setAttendance(data);
+            StorageManager.saveAttendance(data);
+            break;
+          case 'folders':
+            setFolders(data);
+            StorageManager.saveFolders(data);
+            break;
+          case 'questions':
+            setQuestions(data);
+            StorageManager.saveQuestions(data);
+            break;
+          case 'documents':
+            setDocuments(data);
+            StorageManager.saveDocuments(data);
+            break;
+          case 'presentations':
+            setPresentations(data);
+            StorageManager.savePresentations(data);
+            break;
+          case 'exams':
+            setExams(data);
+            StorageManager.saveExams(data);
+            break;
+          case 'examResults':
+            setExamResults(data);
+            StorageManager.saveExamResults(data);
+            break;
+          case 'activities':
+            setActivities(data);
+            StorageManager.saveActivities(data);
+            break;
+          case 'settings':
+            setSettings(data);
+            StorageManager.saveSettings(data);
+            break;
+          default:
+            break;
+        }
+      } catch (err) {
+        console.error("Error handling SSE message:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("SSE connection error. Reconnecting...", err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [adminPassword, clientId]);
+
+  // Push updates back to Node/Express server for persistence and broadcast
+  const syncToServer = async (key: string, data: any) => {
+    if (adminPassword !== '2010636075') return;
+    try {
+      await fetch(`/api/data?auth=${adminPassword}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': adminPassword,
+        },
+        body: JSON.stringify({ key, data, clientId }),
+      });
+    } catch (err) {
+      console.error(`Failed to sync updates to server for ${key}:`, err);
+    }
+  };
+
+  // Apply dark mode setting to HTML class list
+  useEffect(() => {
+    const html = document.documentElement;
+    if (settings.darkMode) {
+      html.classList.add('dark');
+    } else {
+      html.classList.remove('dark');
+    }
+  }, [settings.darkMode]);
+
+  // One-time execution to delete all students as requested by user
+  useEffect(() => {
+    const isCleared = localStorage.getItem('msc_students_cleared_by_user');
+    if (!isCleared) {
+      StorageManager.saveStudents([]);
+      StorageManager.saveAttendance([]);
+      setStudents([]);
+      setAttendance([]);
+      localStorage.setItem('msc_students_cleared_by_user', 'true');
+    }
+  }, []);
+
+  const runAutoInactivityCheck = (currentStudents: Student[], currentAttendance: AttendanceRecord[]) => {
+    const today = new Date();
+    
+    // Last 7 calendar days
+    const last7Days: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      last7Days.push(`${yyyy}-${mm}-${dd}`);
+    }
+
+    // Filter to on-days (NOT Friday (5), NOT Saturday (6))
+    const last7OnDays = last7Days.filter((dateStr) => {
+      const parts = dateStr.split('-');
+      const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayOfWeek = dateObj.getDay();
+      return dayOfWeek !== 5 && dayOfWeek !== 6;
+    });
+
+    // Class dates actually held (at least one attendance record across any student on that date)
+    const activeClassDates = last7OnDays.filter(dateStr => 
+      currentAttendance.some(att => att.date === dateStr)
+    );
+
+    if (activeClassDates.length === 0) return;
+
+    let updatedAny = false;
+    const updatedStudents = currentStudents.map((student) => {
+      if (student.status !== StudentStatus.Active) return student;
+
+      // Check attendance for this student on each of the active class dates
+      let attendedAny = false;
+      let hasRecord = false;
+
+      activeClassDates.forEach((dateStr) => {
+        const rec = currentAttendance.find(att => att.studentId === student.id && att.date === dateStr);
+        if (rec) {
+          hasRecord = true;
+          if (rec.status === 'Present' || rec.status === 'Late' || rec.status === 'Leave') {
+            attendedAny = true;
+          }
+        }
+      });
+
+      // If they had class held but didn't attend any (Present, Late, or Leave)
+      if (hasRecord && !attendedAny) {
+        updatedAny = true;
+        logAction(
+          'Students',
+          'Auto Deactivated',
+          `Marked ${student.name} as Inactive due to 1 week of consecutive absence on active class days.`,
+          ActivityType.Warning
+        );
+        showToast(`${student.name} marked Inactive due to 1 week of absence.`, 'warning');
+        return {
+          ...student,
+          status: StudentStatus.Inactive,
+          notes: `${student.notes ? student.notes + ' \n' : ''}[System Auto]: Marked Inactive due to 1 week absence.`,
+        };
+      }
+      return student;
+    });
+
+    if (updatedAny) {
+      setStudents(updatedStudents);
+      StorageManager.saveStudents(updatedStudents);
+      syncToServer('students', updatedStudents);
+    }
+  };
+
+  // Run inactivity check on mount once database is loaded
+  useEffect(() => {
+    if (students.length > 0 && attendance.length > 0) {
+      runAutoInactivityCheck(students, attendance);
+    }
+  }, []);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    const id = 'toast-' + Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      removeToast(id);
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    StorageManager.saveSettings(updated);
+    showToast('Settings saved successfully', 'success');
+    syncToServer('settings', updated);
+  };
+
+  const refreshStudents = () => {
+    setStudents(StorageManager.getStudents());
+  };
+
+  const logAction = (module: string, action: string, details: string, type: ActivityType = ActivityType.Info) => {
+    StorageManager.addActivity(module, action, details, type);
+    const updated = StorageManager.getActivities();
+    setActivities(updated);
+    syncToServer('activities', updated);
+  };
+
+  // Student Actions
+  const addStudent = (s: Omit<Student, 'id'>) => {
+    const id = 's-' + (students.length > 0 ? Math.max(...students.map(std => {
+      const parsed = parseInt(std.id.replace('s-', ''), 10);
+      return isNaN(parsed) ? 0 : parsed;
+    })) + 1 : 1);
+    const newStudent: Student = { ...s, id };
+    const updated = [...students, newStudent];
+    setStudents(updated);
+    StorageManager.saveStudents(updated);
+    logAction('Students', 'Student Added', `${newStudent.name} (Roll ${newStudent.roll}) has been added.`, ActivityType.Success);
+    showToast(`${newStudent.name} added successfully!`);
+    syncToServer('students', updated);
+    return newStudent;
+  };
+
+  const updateStudent = (s: Student) => {
+    const updated = students.map((std) => (std.id === s.id ? s : std));
+    setStudents(updated);
+    StorageManager.saveStudents(updated);
+    logAction('Students', 'Student Edited', `Updated details for student: ${s.name}.`, ActivityType.Info);
+    showToast(`Updated details for ${s.name}`);
+    syncToServer('students', updated);
+  };
+
+  const deleteStudent = (id: string) => {
+    const student = students.find((std) => std.id === id);
+    if (!student) return;
+    const updated = students.filter((std) => std.id !== id);
+    setStudents(updated);
+    StorageManager.saveStudents(updated);
+    // Also clear references in attendance
+    const filteredAttendance = attendance.filter((a) => a.studentId !== id);
+    setAttendance(filteredAttendance);
+    StorageManager.saveAttendance(filteredAttendance);
+
+    logAction('Students', 'Student Deleted', `Removed student: ${student.name}.`, ActivityType.Danger);
+    showToast(`Removed student ${student.name}`, 'warning');
+    syncToServer('students', updated);
+    syncToServer('attendance', filteredAttendance);
+  };
+
+  const duplicateStudent = (id: string) => {
+    const original = students.find((std) => std.id === id);
+    if (!original) return;
+    const maxRoll = students.length > 0 ? Math.max(...students.map(s => s.roll)) : 0;
+    const newStudent: Omit<Student, 'id'> = {
+      ...original,
+      name: `${original.name} (Copy)`,
+      roll: maxRoll + 1,
+    };
+    addStudent(newStudent);
+  };
+
+  const bulkDeleteStudents = (ids: string[]) => {
+    const updated = students.filter((std) => !ids.includes(std.id));
+    setStudents(updated);
+    StorageManager.saveStudents(updated);
+    // Clean up attendance
+    const filteredAttendance = attendance.filter((a) => !ids.includes(a.studentId));
+    setAttendance(filteredAttendance);
+    StorageManager.saveAttendance(filteredAttendance);
+
+    logAction('Students', 'Bulk Delete', `Deleted ${ids.length} students in a bulk operation.`, ActivityType.Danger);
+    showToast(`Successfully deleted ${ids.length} students`, 'warning');
+    syncToServer('students', updated);
+    syncToServer('attendance', filteredAttendance);
+  };
+
+  // Attendance Actions
+  const saveAttendanceRecords = (date: string, records: Omit<AttendanceRecord, 'id' | 'timestamp'>[]) => {
+    const studentIdsBeingSaved = new Set(records.map(r => r.studentId));
+    let currentFiltered = attendance.filter((rec) => !(rec.date === date && studentIdsBeingSaved.has(rec.studentId)));
+    const timestamp = new Date().toISOString();
+    
+    const newRecords: AttendanceRecord[] = records.map((rec, index) => ({
+      ...rec,
+      id: `att-${Date.now()}-${index}`,
+      timestamp,
+    }));
+
+    const updated = [...currentFiltered, ...newRecords];
+    setAttendance(updated);
+    StorageManager.saveAttendance(updated);
+    logAction('Attendance', 'Attendance Saved', `Saved ${records.length} student attendance logs for date: ${date}.`, ActivityType.Success);
+    showToast(`Attendance logs saved for ${date}!`);
+    syncToServer('attendance', updated);
+
+    runAutoInactivityCheck(students, updated);
+  };
+
+  // Folders
+  const addFolder = (name: string, type: 'question' | 'document', parentId: string | null) => {
+    const id = 'f-' + Date.now();
+    const newFolder: Folder = { id, name, type, parentId };
+    const updated = [...folders, newFolder];
+    setFolders(updated);
+    StorageManager.saveFolders(updated);
+    logAction('System', 'Folder Created', `Created ${type} folder: "${name}".`, ActivityType.Info);
+    showToast(`Folder "${name}" created`);
+    syncToServer('folders', updated);
+  };
+
+  // Questions
+  const addQuestion = (q: Omit<Question, 'id' | 'createdAt'>) => {
+    const id = 'q-' + Date.now();
+    const newQuestion: Question = {
+      ...q,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [newQuestion, ...questions];
+    setQuestions(updated);
+    StorageManager.saveQuestions(updated);
+    logAction('Question Bank', 'Question Created', `Created question: "${q.title}".`, ActivityType.Success);
+    showToast(`Question "${q.title}" added to repository!`);
+    syncToServer('questions', updated);
+    return newQuestion;
+  };
+
+  const updateQuestion = (q: Question) => {
+    const updated = questions.map((item) => (item.id === q.id ? q : item));
+    setQuestions(updated);
+    StorageManager.saveQuestions(updated);
+    logAction('Question Bank', 'Question Updated', `Updated question details for: "${q.title}".`, ActivityType.Info);
+    showToast(`Question "${q.title}" updated`);
+    syncToServer('questions', updated);
+  };
+
+  const deleteQuestion = (id: string) => {
+    const question = questions.find((q) => q.id === id);
+    if (!question) return;
+    const updated = questions.filter((q) => q.id !== id);
+    setQuestions(updated);
+    StorageManager.saveQuestions(updated);
+    logAction('Question Bank', 'Question Deleted', `Removed question: "${question.title}".`, ActivityType.Danger);
+    showToast(`Removed "${question.title}"`, 'warning');
+    syncToServer('questions', updated);
+  };
+
+  const duplicateQuestion = (id: string) => {
+    const original = questions.find((q) => q.id === id);
+    if (!original) return;
+    const { id: _, createdAt: __, ...rest } = original;
+    const duplicated: Omit<Question, 'id' | 'createdAt'> = {
+      ...rest,
+      title: `${original.title} (Copy)`,
+    };
+    addQuestion(duplicated);
+  };
+
+  // Documents
+  const addDocument = (d: Omit<CustomDocument, 'id' | 'lastEdited'>) => {
+    const id = 'd-' + Date.now();
+    const newDoc: CustomDocument = {
+      ...d,
+      id,
+      lastEdited: new Date().toISOString(),
+    };
+    const updated = [newDoc, ...documents];
+    setDocuments(updated);
+    StorageManager.saveDocuments(updated);
+    logAction('Documents', 'Document Created', `Created text document: "${d.title}".`, ActivityType.Success);
+    showToast(`Document "${d.title}" created successfully!`);
+    syncToServer('documents', updated);
+    return newDoc;
+  };
+
+  const updateDocument = (d: CustomDocument) => {
+    const updatedDoc = { ...d, lastEdited: new Date().toISOString() };
+    const updated = documents.map((item) => (item.id === d.id ? updatedDoc : item));
+    setDocuments(updated);
+    StorageManager.saveDocuments(updated);
+    logAction('Documents', 'Document Autosaved', `Saved changes for doc: "${d.title}".`, ActivityType.Info);
+    syncToServer('documents', updated);
+  };
+
+  const deleteDocument = (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc) return;
+    const updated = documents.filter((d) => d.id !== id);
+    setDocuments(updated);
+    StorageManager.saveDocuments(updated);
+    logAction('Documents', 'Document Deleted', `Removed document: "${doc.title}".`, ActivityType.Danger);
+    showToast(`Removed "${doc.title}"`, 'warning');
+    syncToServer('documents', updated);
+  };
+
+  // Slide Presentations
+  const addPresentation = (p: Omit<SlidePresentation, 'id' | 'lastEdited'>) => {
+    const id = 'p-' + Date.now();
+    const newPresentation: SlidePresentation = {
+      ...p,
+      id,
+      lastEdited: new Date().toISOString(),
+    };
+    const updated = [newPresentation, ...presentations];
+    setPresentations(updated);
+    StorageManager.savePresentations(updated);
+    logAction('Slides', 'Slide Deck Created', `Created presentation: "${p.title}".`, ActivityType.Success);
+    showToast(`Slide Deck "${p.title}" created!`);
+    syncToServer('presentations', updated);
+    return newPresentation;
+  };
+
+  const updatePresentation = (p: SlidePresentation) => {
+    const updatedPres = { ...p, lastEdited: new Date().toISOString() };
+    const updated = presentations.map((item) => (item.id === p.id ? updatedPres : item));
+    setPresentations(updated);
+    StorageManager.savePresentations(updated);
+    logAction('Slides', 'Presentation Saved', `Updated slide deck: "${p.title}".`, ActivityType.Info);
+    syncToServer('presentations', updated);
+  };
+
+  const deletePresentation = (id: string) => {
+    const pres = presentations.find((p) => p.id === id);
+    if (!pres) return;
+    const updated = presentations.filter((p) => p.id !== id);
+    setPresentations(updated);
+    StorageManager.savePresentations(updated);
+    logAction('Slides', 'Presentation Deleted', `Removed presentation: "${pres.title}".`, ActivityType.Danger);
+    showToast(`Removed "${pres.title}"`, 'warning');
+    syncToServer('presentations', updated);
+  };
+
+  // Exam Actions
+  const addExam = (e: Omit<Exam, 'id'>) => {
+    const id = 'exam-' + Date.now();
+    const newExam: Exam = { ...e, id };
+    const updated = [newExam, ...exams];
+    setExams(updated);
+    StorageManager.saveExams(updated);
+    logAction('Exam Portal', 'Exam Created', `Created exam: "${e.name}" of type ${e.type}.`, ActivityType.Success);
+    showToast(`Exam "${e.name}" added successfully!`);
+    syncToServer('exams', updated);
+    return newExam;
+  };
+
+  const updateExam = (e: Exam) => {
+    const updated = exams.map((item) => (item.id === e.id ? e : item));
+    setExams(updated);
+    StorageManager.saveExams(updated);
+    logAction('Exam Portal', 'Exam Updated', `Updated details for exam: "${e.name}".`, ActivityType.Info);
+    showToast(`Updated details for "${e.name}"`);
+    syncToServer('exams', updated);
+  };
+
+  const deleteExam = (id: string) => {
+    const exam = exams.find((e) => e.id === id);
+    if (!exam) return;
+    const updatedExams = exams.filter((e) => e.id !== id);
+    setExams(updatedExams);
+    StorageManager.saveExams(updatedExams);
+    
+    // Also clean up related exam results
+    const updatedResults = examResults.filter((r) => r.examId !== id);
+    setExamResults(updatedResults);
+    StorageManager.saveExamResults(updatedResults);
+
+    logAction('Exam Portal', 'Exam Deleted', `Removed exam: "${exam.name}".`, ActivityType.Danger);
+    showToast(`Removed exam "${exam.name}"`, 'warning');
+    syncToServer('exams', updatedExams);
+    syncToServer('examResults', updatedResults);
+  };
+
+  const saveExamResults = (examId: string, results: Omit<ExamResult, 'id'>[]) => {
+    const currentFiltered = examResults.filter((r) => r.examId !== examId);
+    
+    const newResults: ExamResult[] = results.map((r, index) => ({
+      ...r,
+      id: `res-${examId}-${Date.now()}-${index}`,
+    }));
+
+    const updated = [...currentFiltered, ...newResults];
+    setExamResults(updated);
+    StorageManager.saveExamResults(updated);
+    
+    const exam = exams.find(e => e.id === examId);
+    logAction('Exam Portal', 'Results Saved', `Saved marks/results for ${results.length} students in exam: "${exam?.name || examId}".`, ActivityType.Success);
+    showToast(`Results saved for "${exam?.name || 'Exam'}"!`);
+    syncToServer('examResults', updated);
+  };
+
+  const resetAllData = async () => {
+    if (adminPassword === '2010636075') {
+      try {
+        await fetch(`/api/reset?auth=${adminPassword}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Password': adminPassword,
+          },
+          body: JSON.stringify({ clientId }),
+        });
+        window.location.reload();
+      } catch (e) {
+        StorageManager.resetDatabase();
+      }
+    } else {
+      StorageManager.resetDatabase();
+    }
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        currentSection,
+        setCurrentSection,
+        settings,
+        updateSettings,
+        students,
+        refreshStudents,
+        addStudent,
+        updateStudent,
+        deleteStudent,
+        duplicateStudent,
+        bulkDeleteStudents,
+        attendance,
+        saveAttendanceRecords,
+        folders,
+        addFolder,
+        questions,
+        addQuestion,
+        updateQuestion,
+        deleteQuestion,
+        duplicateQuestion,
+        documents,
+        addDocument,
+        updateDocument,
+        deleteDocument,
+        presentations,
+        addPresentation,
+        updatePresentation,
+        deletePresentation,
+        exams,
+        examResults,
+        addExam,
+        updateExam,
+        deleteExam,
+        saveExamResults,
+        activities,
+        logAction,
+        toasts,
+        showToast,
+        removeToast,
+        resetAllData,
+        // Auth gate states
+        adminPassword,
+        setAdminPassword,
+        logout,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+}

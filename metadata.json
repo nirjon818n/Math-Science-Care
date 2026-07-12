@@ -1,0 +1,6 @@
+{
+  "name": "Math & Science Care",
+  "description": "A premium, production-quality Tuition Management Portal for managing students, attendance, question papers, documents, and slides with advanced features and elegant dark aesthetics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
