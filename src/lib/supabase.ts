@@ -28,12 +28,12 @@ import {
 const SUPABASE_URL = 
   import.meta.env?.VITE_SUPABASE_URL || 
   process.env.VITE_SUPABASE_URL || 
-  'https://hfwaxhcphvzoaygalljd.supabase.co';
+  'https://placeholder.supabase.co';
 
 const SUPABASE_ANON_KEY = 
   import.meta.env?.VITE_SUPABASE_ANON_KEY || 
   process.env.VITE_SUPABASE_ANON_KEY || 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.anonkeyplaceholder';
+  'placeholder-anon-key';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

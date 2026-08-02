@@ -26,7 +26,7 @@ function AppContent() {
   const { currentSection, toasts, removeToast, adminPassword, setAdminPassword } = useApp();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  if (adminPassword !== '2010636075') {
+  if (!adminPassword) {
     return <AdminLogin onLoginSuccess={setAdminPassword} />;
   }
 

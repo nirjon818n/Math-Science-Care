@@ -373,8 +373,6 @@ export default function ExamPortalView() {
 
         try {
           const payload = new URLSearchParams({
-            apikey: "510b17b71592af35dac9cba3d019dc30",
-            sender: "8809617639923",
             msisdn: phone,
             smstext: messageContent,
             smsformat: "8"
@@ -384,7 +382,7 @@ export default function ExamPortalView() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
-              'X-Admin-Password': adminPassword || '2010636075'
+              'X-Admin-Password': adminPassword
             },
             body: payload.toString()
           });

@@ -4,6 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { io, Socket } from 'socket.io-client';
 import {
   Student,
   AttendanceRecord,
@@ -138,11 +139,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAdminPassword('');
   };
 
-  // Setup Server-Sent Events real-time sync with database.json on Node server
+  // Setup Socket.IO real-time bi-directional sync with Node server
   useEffect(() => {
-    if (adminPassword !== '2010636075') return;
+    if (!adminPassword) return;
 
-    // 1. Fetch initial state from database.json on server
+    // 1. Fetch initial state from database on server
     const loadInitialData = async () => {
       try {
         const res = await fetch(`/api/data?auth=${adminPassword}`);
@@ -229,16 +230,94 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     loadInitialData();
 
-    // 2. Setup highly resilient, SILENT Server-Sent Events (SSE) stream for instant synchronization
-    let eventSource: EventSource | null = null;
-    
-    const connectSSE = () => {
-      if (eventSource) {
-        eventSource.close();
+    // Helper for applying real-time data deltas
+    const applyDelta = (key: string, data: any) => {
+      switch (key) {
+        case 'students':
+          setStudents(data);
+          StorageManager.saveStudents(data);
+          break;
+        case 'attendance':
+          setAttendance(data);
+          StorageManager.saveAttendance(data);
+          break;
+        case 'folders':
+          setFolders(data);
+          StorageManager.saveFolders(data);
+          break;
+        case 'questions':
+          setQuestions(data);
+          StorageManager.saveQuestions(data);
+          break;
+        case 'documents':
+          setDocuments(data);
+          StorageManager.saveDocuments(data);
+          break;
+        case 'presentations':
+          setPresentations(data);
+          StorageManager.savePresentations(data);
+          break;
+        case 'exams':
+          setExams(data);
+          StorageManager.saveExams(data);
+          break;
+        case 'examResults':
+          setExamResults(data);
+          StorageManager.saveExamResults(data);
+          break;
+        case 'activities':
+          setActivities(data);
+          StorageManager.saveActivities(data);
+          break;
+        case 'settings':
+          setSettings(data);
+          StorageManager.saveSettings(data);
+          break;
+        case 'uploadedFiles':
+          setUploadedFiles(data);
+          StorageManager.saveUploadedFiles(data);
+          break;
+        case 'feePayments':
+          setFeePayments(data);
+          StorageManager.saveFeePayments(data);
+          break;
+        case 'sms_logs':
+          setSmsLogs(data);
+          StorageManager.saveSmsLogs(data);
+          break;
+        default:
+          break;
       }
-      
+    };
+
+    // 2. Setup Socket.IO real-time bi-directional connection
+    let socket: Socket | null = null;
+    try {
+      socket = io({
+        transports: ['websocket', 'polling'],
+        query: { auth: adminPassword, clientId }
+      });
+
+      socket.emit('join');
+
+      socket.on('data:update', (payload: any) => {
+        if (!payload || payload.clientId === clientId) return;
+        applyDelta(payload.key, payload.data);
+      });
+
+      socket.on('data:reset', (payload: any) => {
+        if (!payload || payload.clientId === clientId) return;
+        window.location.reload();
+      });
+    } catch (err) {
+      console.warn("Socket.IO client initialization skipped:", err);
+    }
+
+    // 3. Fallback SSE stream
+    let eventSource: EventSource | null = null;
+    const connectSSE = () => {
+      if (eventSource) eventSource.close();
       eventSource = new EventSource(`/api/sync/stream?auth=${adminPassword}&clientId=${clientId}`);
-      
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -246,88 +325,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
             window.location.reload();
             return;
           }
-          
           const { key, data, clientId: senderClientId } = payload;
-          if (senderClientId === clientId) return; // skip self-broadcasts
-
-          switch (key) {
-            case 'students':
-              setStudents(data);
-              StorageManager.saveStudents(data);
-              break;
-            case 'attendance':
-              setAttendance(data);
-              StorageManager.saveAttendance(data);
-              break;
-            case 'folders':
-              setFolders(data);
-              StorageManager.saveFolders(data);
-              break;
-            case 'questions':
-              setQuestions(data);
-              StorageManager.saveQuestions(data);
-              break;
-            case 'documents':
-              setDocuments(data);
-              StorageManager.saveDocuments(data);
-              break;
-            case 'presentations':
-              setPresentations(data);
-              StorageManager.savePresentations(data);
-              break;
-            case 'exams':
-              setExams(data);
-              StorageManager.saveExams(data);
-              break;
-            case 'examResults':
-              setExamResults(data);
-              StorageManager.saveExamResults(data);
-              break;
-            case 'activities':
-              setActivities(data);
-              StorageManager.saveActivities(data);
-              break;
-            case 'settings':
-              setSettings(data);
-              StorageManager.saveSettings(data);
-              break;
-            case 'uploadedFiles':
-              setUploadedFiles(data);
-              StorageManager.saveUploadedFiles(data);
-              break;
-            case 'feePayments':
-              setFeePayments(data);
-              StorageManager.saveFeePayments(data);
-              break;
-            case 'sms_logs':
-              setSmsLogs(data);
-              StorageManager.saveSmsLogs(data);
-              break;
-            default:
-              break;
-          }
-        } catch (err) {
-          // completely silent error handling to prevent console clutter
-        }
+          if (senderClientId === clientId) return;
+          applyDelta(key, data);
+        } catch (err) {}
       };
-
-      // Completely silent on error - EventSource automatically reconnects under the hood
-      eventSource.onerror = () => {
-        // Silent
-      };
+      eventSource.onerror = () => {};
     };
+    connectSSE();
 
-    if (adminPassword) {
-      connectSSE();
-    }
-
-    // 3. Keep 3-second background polling interval as a bulletproof fallback for instant/real-time synchronization
+    // 4. Background polling interval as fallback
     const pollInterval = setInterval(async () => {
       try {
         const res = await fetch(`/api/data?auth=${adminPassword}`);
         if (res.ok) {
           const data = await res.json();
-          // Update all collections to maintain state synchronization with server
           if (data.students) { setStudents(data.students); StorageManager.saveStudents(data.students); }
           if (data.attendance) { setAttendance(data.attendance); StorageManager.saveAttendance(data.attendance); }
           if (data.folders) { setFolders(data.folders); StorageManager.saveFolders(data.folders); }
@@ -342,22 +354,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (data.feePayments) { setFeePayments(data.feePayments); StorageManager.saveFeePayments(data.feePayments); }
           if (data.sms_logs) { setSmsLogs(data.sms_logs); StorageManager.saveSmsLogs(data.sms_logs); }
         }
-      } catch (err) {
-        // Silent error handling in background polling to keep console perfectly clean
-      }
-    }, 3000);
+      } catch (err) {}
+    }, 5000);
 
     return () => {
-      if (eventSource) {
-        (eventSource as EventSource).close();
-      }
+      if (socket) socket.disconnect();
+      if (eventSource) eventSource.close();
       clearInterval(pollInterval);
     };
   }, [adminPassword, clientId]);
 
   // Push updates back to Node/Express server for persistence and broadcast
   const syncToServer = async (key: string, data: any) => {
-    if (adminPassword !== '2010636075') return;
+    if (!adminPassword) return;
     try {
       await fetch(`/api/data?auth=${adminPassword}`, {
         method: 'POST',
@@ -875,7 +884,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const resetAllData = async () => {
-    if (adminPassword === '2010636075') {
+    if (adminPassword) {
       try {
         await fetch(`/api/reset?auth=${adminPassword}`, {
           method: 'POST',

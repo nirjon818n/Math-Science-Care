@@ -100,34 +100,7 @@ export default function SmsDashboard() {
         setPwModalError(errData.error || 'ভুল অ্যাডমিন পাসওয়ার্ড। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।');
       }
     } catch (err) {
-      if (pwModalPassword === '2010636075') {
-        const currentStatus = settings.smsServiceEnabled !== false;
-        const newStatus = !currentStatus;
-        
-        updateSettings({ smsServiceEnabled: newStatus });
-        
-        if (logAction) {
-          logAction(
-            'SMS Dashboard', 
-            newStatus ? 'SMS Service Activated' : 'SMS Service Deactivated', 
-            `SMS service was manually ${newStatus ? 'turned ON' : 'turned OFF'} after successful admin verification (offline mode).`, 
-            newStatus ? 'success' : 'warning'
-          );
-        }
-
-        showToast(
-          newStatus 
-            ? 'SMS সার্ভিস সফলভাবে চালু করা হয়েছে!' 
-            : 'SMS সার্ভিস সফলভাবে বন্ধ করা হয়েছে!',
-          'success'
-        );
-
-        setShowPasswordModal(false);
-        setPwModalPassword('');
-        setPwModalError(null);
-      } else {
-        setPwModalError('পাসওয়ার্ড যাচাইকরণ ব্যর্থ হয়েছে। পুনরায় চেষ্টা করুন।');
-      }
+      setPwModalError('পাসওয়ার্ড যাচাইকরণ ব্যর্থ হয়েছে। পুনরায় চেষ্টা করুন।');
     } finally {
       setPwModalLoading(false);
     }
@@ -141,7 +114,7 @@ export default function SmsDashboard() {
       }
       setBalanceError(null);
 
-      const activeAuth = adminPassword || sessionStorage.getItem('msc_admin_auth') || '2010636075';
+      const activeAuth = adminPassword || sessionStorage.getItem('msc_admin_auth') || '';
       const response = await fetch(`/api/sms-balance?auth=${activeAuth}&_=${Date.now()}`, {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -219,7 +192,7 @@ export default function SmsDashboard() {
     setResendingLogIds(prev => [...prev, log.id]);
 
     try {
-      const activeAuth = adminPassword || sessionStorage.getItem('msc_admin_auth') || '2010636075';
+      const activeAuth = adminPassword || sessionStorage.getItem('msc_admin_auth') || '';
       const res = await fetch('/api/send-sms', {
         method: 'POST',
         headers: {
@@ -306,7 +279,7 @@ export default function SmsDashboard() {
 
     for (const log of failedLogs) {
       try {
-        const activeAuth = adminPassword || sessionStorage.getItem('msc_admin_auth') || '2010636075';
+        const activeAuth = adminPassword || sessionStorage.getItem('msc_admin_auth') || '';
         const res = await fetch('/api/send-sms', {
           method: 'POST',
           headers: {

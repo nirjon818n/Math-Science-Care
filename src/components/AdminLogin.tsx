@@ -42,12 +42,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         setError(errData.error || 'Incorrect admin password. Access denied.');
       }
     } catch (err) {
-      // In case server is not ready or offline during startup
-      if (password === '2010636075') {
-        onLoginSuccess(password);
-      } else {
-        setError('Incorrect password or network error. Please try again.');
-      }
+      setError('Unable to reach authentication server. Please verify your connection.');
     } finally {
       setLoading(false);
     }

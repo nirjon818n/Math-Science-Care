@@ -7,6 +7,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import http from "http";
+import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { supabase, fetchAllDataFromSupabase, saveCollectionToSupabase } from "./src/lib/supabase";
@@ -16,7 +17,33 @@ dotenv.config({ override: true });
 const app = express();
 const server = http.createServer(app);
 const PORT = 3000;
-const ADMIN_PASSWORD = "2010636075";
+
+// Read configuration from environment variables
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "2010636075";
+const AUTOMAS_SMS_API_KEY = process.env.AUTOMAS_SMS_API_KEY || "";
+const AUTOMAS_SMS_SENDER_ID = process.env.AUTOMAS_SMS_SENDER_ID || "";
+
+// Initialize Socket.IO Server for bi-directional real-time state synchronization
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+io.on("connection", (socket) => {
+  socket.on("join", () => {
+    socket.join("app_room");
+  });
+
+  socket.on("data:update", (payload) => {
+    socket.broadcast.emit("data:update", payload);
+  });
+
+  socket.on("data:reset", (payload) => {
+    socket.broadcast.emit("data:reset", payload);
+  });
+});
 
 // Directory for local file uploads (PDFs, question papers, logos)
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
@@ -82,8 +109,8 @@ app.post('/api/send-sms', authMiddleware, async (req, res) => {
     cleanNumber = '88' + cleanNumber; // Ensure 8801... standard BD format
   }
 
-  const apiKey = req.body.apikey || (process.env.AUTOMAS_SMS_API_KEY && process.env.AUTOMAS_SMS_API_KEY !== "056262a0eba72b8d9f7b14482f38a6d8" ? process.env.AUTOMAS_SMS_API_KEY : "510b17b71592af35dac9cba3d019dc30");
-  const senderId = req.body.sender || process.env.AUTOMAS_SMS_SENDER_ID || "8809617639923";
+  const apiKey = req.body.apikey || AUTOMAS_SMS_API_KEY;
+  const senderId = req.body.sender || AUTOMAS_SMS_SENDER_ID;
   const smsFormat = req.body.smsformat || "8";
 
   console.log(`[sms.automas.com.bd API v3] Initiating dispatch to number: ${cleanNumber} (raw: ${rawNumber})`);
@@ -178,7 +205,8 @@ let lastKnownSmsBalance: string = "0.00";
 
 async function updateSmsBalanceCache() {
   try {
-    const apiKey = process.env.AUTOMAS_SMS_API_KEY || "510b17b71592af35dac9cba3d019dc30";
+    const apiKey = AUTOMAS_SMS_API_KEY;
+    if (!apiKey) return;
     const res = await fetch(`https://api.automas.com.bd/getbalancev3?apikey=${apiKey}&_=${Date.now()}`);
     if (res.ok) {
       const text = await res.text();
@@ -198,7 +226,7 @@ updateSmsBalanceCache();
 
 // Proxy route for fetching current SMS balance from Automas API
 app.get('/api/sms-balance', authMiddleware, async (req, res) => {
-  const apiKey = req.query.apikey || process.env.AUTOMAS_SMS_API_KEY || "510b17b71592af35dac9cba3d019dc30";
+  const apiKey = req.query.apikey || AUTOMAS_SMS_API_KEY;
   try {
     const response = await fetch(`https://api.automas.com.bd/getbalancev3?apikey=${apiKey}&_=${Date.now()}`, {
       headers: {
@@ -410,8 +438,11 @@ app.post('/api/data', authMiddleware, async (req, res) => {
       console.warn(`Supabase background save notice for ${key}:`, err.message || err);
     });
 
-    // Broadcast delta to all other connected clients
-    const payload = JSON.stringify({ key, data, clientId });
+    // Broadcast delta via Socket.IO and SSE to connected clients
+    const eventPayload = { key, data, clientId };
+    io.emit("data:update", eventPayload);
+
+    const payload = JSON.stringify(eventPayload);
     sseClients.forEach((client) => {
       if (client.id !== clientId) {
         try {
@@ -480,8 +511,11 @@ app.post('/api/reset', authMiddleware, async (req, res) => {
       console.warn("Supabase reset notice:", e.message || e);
     }
 
-    // Broadcast reset event
-    const payload = JSON.stringify({ reset: true, clientId });
+    // Broadcast reset event via Socket.IO and SSE
+    const eventPayload = { reset: true, clientId };
+    io.emit("data:reset", eventPayload);
+
+    const payload = JSON.stringify(eventPayload);
     sseClients.forEach((client) => {
       if (client.id !== clientId) {
         try {
