@@ -313,54 +313,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn("Socket.IO client initialization skipped:", err);
     }
 
-    // 3. Fallback SSE stream
-    let eventSource: EventSource | null = null;
-    const connectSSE = () => {
-      if (eventSource) eventSource.close();
-      eventSource = new EventSource(`/api/sync/stream?auth=${adminPassword}&clientId=${clientId}`);
-      eventSource.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.reset) {
-            window.location.reload();
-            return;
-          }
-          const { key, data, clientId: senderClientId } = payload;
-          if (senderClientId === clientId) return;
-          applyDelta(key, data);
-        } catch (err) {}
-      };
-      eventSource.onerror = () => {};
-    };
-    connectSSE();
-
-    // 4. Background polling interval as fallback
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/data?auth=${adminPassword}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.students) { setStudents(data.students); StorageManager.saveStudents(data.students); }
-          if (data.attendance) { setAttendance(data.attendance); StorageManager.saveAttendance(data.attendance); }
-          if (data.folders) { setFolders(data.folders); StorageManager.saveFolders(data.folders); }
-          if (data.questions) { setQuestions(data.questions); StorageManager.saveQuestions(data.questions); }
-          if (data.documents) { setDocuments(data.documents); StorageManager.saveDocuments(data.documents); }
-          if (data.presentations) { setPresentations(data.presentations); StorageManager.savePresentations(data.presentations); }
-          if (data.exams) { setExams(data.exams); StorageManager.saveExams(data.exams); }
-          if (data.examResults) { setExamResults(data.examResults); StorageManager.saveExamResults(data.examResults); }
-          if (data.activities) { setActivities(data.activities); StorageManager.saveActivities(data.activities); }
-          if (data.settings) { setSettings(data.settings); StorageManager.saveSettings(data.settings); }
-          if (data.uploadedFiles) { setUploadedFiles(data.uploadedFiles); StorageManager.saveUploadedFiles(data.uploadedFiles); }
-          if (data.feePayments) { setFeePayments(data.feePayments); StorageManager.saveFeePayments(data.feePayments); }
-          if (data.sms_logs) { setSmsLogs(data.sms_logs); StorageManager.saveSmsLogs(data.sms_logs); }
-        }
-      } catch (err) {}
-    }, 5000);
-
     return () => {
       if (socket) socket.disconnect();
-      if (eventSource) eventSource.close();
-      clearInterval(pollInterval);
     };
   }, [adminPassword, clientId]);
 

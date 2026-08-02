@@ -19,7 +19,6 @@ import {
   FeePayment,
   SmsLog
 } from '../types';
-import { saveCollectionToSupabase, fetchAllDataFromSupabase } from './supabase';
 
 const KEYS = {
   STUDENTS: 'msc_students',
@@ -67,41 +66,36 @@ function loadData<T>(key: string, defaultData: T): T {
   }
 }
 
-function saveData<T>(key: string, data: T, supabaseKey?: string): void {
+function saveData<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
     // Ignore quota or disabled localStorage errors
   }
-  if (supabaseKey) {
-    saveCollectionToSupabase(supabaseKey, data).catch(() => {
-      // Ignore optional Supabase sync errors
-    });
-  }
 }
 
-// Global CRUD Helpers API backed by Supabase
+// Global CRUD Helpers API backed by fast localStorage cache
 export const StorageManager = {
   getStudents: (): Student[] => loadData<Student[]>(KEYS.STUDENTS, []),
-  saveStudents: (data: Student[]) => saveData<Student[]>(KEYS.STUDENTS, data, 'students'),
+  saveStudents: (data: Student[]) => saveData<Student[]>(KEYS.STUDENTS, data),
 
   getAttendance: (): AttendanceRecord[] => loadData<AttendanceRecord[]>(KEYS.ATTENDANCE, []),
-  saveAttendance: (data: AttendanceRecord[]) => saveData<AttendanceRecord[]>(KEYS.ATTENDANCE, data, 'attendance'),
+  saveAttendance: (data: AttendanceRecord[]) => saveData<AttendanceRecord[]>(KEYS.ATTENDANCE, data),
 
   getFolders: (): Folder[] => loadData<Folder[]>(KEYS.FOLDERS, INITIAL_FOLDERS),
-  saveFolders: (data: Folder[]) => saveData<Folder[]>(KEYS.FOLDERS, data, 'folders'),
+  saveFolders: (data: Folder[]) => saveData<Folder[]>(KEYS.FOLDERS, data),
 
   getQuestions: (): Question[] => loadData<Question[]>(KEYS.QUESTIONS, []),
-  saveQuestions: (data: Question[]) => saveData<Question[]>(KEYS.QUESTIONS, data, 'questions'),
+  saveQuestions: (data: Question[]) => saveData<Question[]>(KEYS.QUESTIONS, data),
 
   getDocuments: (): CustomDocument[] => loadData<CustomDocument[]>(KEYS.DOCUMENTS, []),
-  saveDocuments: (data: CustomDocument[]) => saveData<CustomDocument[]>(KEYS.DOCUMENTS, data, 'documents'),
+  saveDocuments: (data: CustomDocument[]) => saveData<CustomDocument[]>(KEYS.DOCUMENTS, data),
 
   getPresentations: (): SlidePresentation[] => loadData<SlidePresentation[]>(KEYS.PRESENTATIONS, []),
-  savePresentations: (data: SlidePresentation[]) => saveData<SlidePresentation[]>(KEYS.PRESENTATIONS, data, 'presentations'),
+  savePresentations: (data: SlidePresentation[]) => saveData<SlidePresentation[]>(KEYS.PRESENTATIONS, data),
 
   getActivities: (): ActivityLog[] => loadData<ActivityLog[]>(KEYS.ACTIVITIES, []),
-  saveActivities: (data: ActivityLog[]) => saveData<ActivityLog[]>(KEYS.ACTIVITIES, data, 'activities'),
+  saveActivities: (data: ActivityLog[]) => saveData<ActivityLog[]>(KEYS.ACTIVITIES, data),
   addActivity: (module: string, action: string, details: string, type: ActivityType = ActivityType.Info) => {
     const logs = StorageManager.getActivities();
     const newLog: ActivityLog = {
@@ -116,44 +110,22 @@ export const StorageManager = {
   },
 
   getSettings: (): AppSettings => loadData<AppSettings>(KEYS.SETTINGS, INITIAL_SETTINGS),
-  saveSettings: (data: AppSettings) => saveData<AppSettings>(KEYS.SETTINGS, data, 'settings'),
+  saveSettings: (data: AppSettings) => saveData<AppSettings>(KEYS.SETTINGS, data),
 
   getExams: (): Exam[] => loadData<Exam[]>(KEYS.EXAMS, []),
-  saveExams: (data: Exam[]) => saveData<Exam[]>(KEYS.EXAMS, data, 'exams'),
+  saveExams: (data: Exam[]) => saveData<Exam[]>(KEYS.EXAMS, data),
 
   getExamResults: (): ExamResult[] => loadData<ExamResult[]>(KEYS.EXAM_RESULTS, []),
-  saveExamResults: (data: ExamResult[]) => saveData<ExamResult[]>(KEYS.EXAM_RESULTS, data, 'examResults'),
+  saveExamResults: (data: ExamResult[]) => saveData<ExamResult[]>(KEYS.EXAM_RESULTS, data),
 
   getUploadedFiles: (): UploadedFile[] => loadData<UploadedFile[]>(KEYS.UPLOADED_FILES, []),
-  saveUploadedFiles: (data: UploadedFile[]) => saveData<UploadedFile[]>(KEYS.UPLOADED_FILES, data, 'uploadedFiles'),
+  saveUploadedFiles: (data: UploadedFile[]) => saveData<UploadedFile[]>(KEYS.UPLOADED_FILES, data),
 
   getFeePayments: (): FeePayment[] => loadData<FeePayment[]>(KEYS.FEE_PAYMENTS, []),
-  saveFeePayments: (data: FeePayment[]) => saveData<FeePayment[]>(KEYS.FEE_PAYMENTS, data, 'feePayments'),
+  saveFeePayments: (data: FeePayment[]) => saveData<FeePayment[]>(KEYS.FEE_PAYMENTS, data),
 
   getSmsLogs: (): SmsLog[] => loadData<SmsLog[]>(KEYS.SMS_LOGS, []),
-  saveSmsLogs: (data: SmsLog[]) => saveData<SmsLog[]>(KEYS.SMS_LOGS, data, 'sms_logs'),
-
-  syncFromSupabase: async () => {
-    try {
-      const data = await fetchAllDataFromSupabase();
-      if (data.students) StorageManager.saveStudents(data.students);
-      if (data.attendance) StorageManager.saveAttendance(data.attendance);
-      if (data.folders) StorageManager.saveFolders(data.folders);
-      if (data.questions) StorageManager.saveQuestions(data.questions);
-      if (data.documents) StorageManager.saveDocuments(data.documents);
-      if (data.presentations) StorageManager.savePresentations(data.presentations);
-      if (data.activities) StorageManager.saveActivities(data.activities);
-      if (data.settings) StorageManager.saveSettings(data.settings);
-      if (data.exams) StorageManager.saveExams(data.exams);
-      if (data.examResults) StorageManager.saveExamResults(data.examResults);
-      if (data.uploadedFiles) StorageManager.saveUploadedFiles(data.uploadedFiles);
-      if (data.feePayments) StorageManager.saveFeePayments(data.feePayments);
-      if (data.sms_logs) StorageManager.saveSmsLogs(data.sms_logs);
-      return data;
-    } catch (e) {
-      return null;
-    }
-  },
+  saveSmsLogs: (data: SmsLog[]) => saveData<SmsLog[]>(KEYS.SMS_LOGS, data),
 
   resetDatabase: () => {
     localStorage.clear();

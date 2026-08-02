@@ -112,13 +112,6 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
   next();
 }
 
-// Active Server-Sent Events clients for real-time synchronization
-interface SseClient {
-  id: string;
-  res: express.Response;
-}
-let sseClients: SseClient[] = [];
-
 // API Endpoints
 // Password challenge endpoint
 app.post('/api/auth', (req, res) => {
@@ -482,20 +475,9 @@ app.post('/api/data', authMiddleware, async (req, res) => {
       console.warn(`Supabase background save notice for ${key}:`, err.message || err);
     });
 
-    // Broadcast delta via Socket.IO and SSE to connected clients
+    // Broadcast delta via Socket.IO to connected clients
     const eventPayload = { key, data, clientId };
     io.emit("data:update", eventPayload);
-
-    const payload = JSON.stringify(eventPayload);
-    sseClients.forEach((client) => {
-      if (client.id !== clientId) {
-        try {
-          client.res.write(`data: ${payload}\n\n`);
-        } catch (e) {
-          console.error("Failed to write to client stream:", e);
-        }
-      }
-    });
 
     return res.json({ success: true });
   } catch (err: any) {
@@ -555,63 +537,15 @@ app.post('/api/reset', authMiddleware, async (req, res) => {
       console.warn("Supabase reset notice:", e.message || e);
     }
 
-    // Broadcast reset event via Socket.IO and SSE
+    // Broadcast reset event via Socket.IO
     const eventPayload = { reset: true, clientId };
     io.emit("data:reset", eventPayload);
-
-    const payload = JSON.stringify(eventPayload);
-    sseClients.forEach((client) => {
-      if (client.id !== clientId) {
-        try {
-          client.res.write(`data: ${payload}\n\n`);
-        } catch (e) {
-          console.error("Failed to write to client stream during reset:", e);
-        }
-      }
-    });
 
     return res.json({ success: true });
   } catch (err: any) {
     console.error("Error resetting database:", err);
     return res.status(500).json({ error: err.message || "Failed to reset database" });
   }
-});
-
-// SSE Stream endpoint for live updates
-app.get('/api/sync/stream', (req, res) => {
-  const authVal = req.query.auth as string;
-  if (!verifyPassword(authVal)) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.write('event: error\ndata: Unauthorized\n\n');
-    return res.end();
-  }
-
-  const clientId = (req.query.clientId as string) || 'unknown';
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-
-  res.write(': keepalive\n\n');
-
-  const pingInterval = setInterval(() => {
-    try {
-      res.write(': ping\n\n');
-    } catch (e) {
-      clearInterval(pingInterval);
-    }
-  }, 25000);
-
-  const newClient = { id: clientId, res };
-  sseClients.push(newClient);
-
-  req.on('close', () => {
-    clearInterval(pingInterval);
-    sseClients = sseClients.filter(c => c.res !== res);
-  });
 });
 
 async function start() {
