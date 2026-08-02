@@ -9,6 +9,7 @@ import fs from "fs";
 import http from "http";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { supabase, fetchAllDataFromSupabase, saveCollectionToSupabase } from "./src/lib/supabase";
 
 dotenv.config({ override: true });
 
@@ -16,254 +17,20 @@ const app = express();
 const server = http.createServer(app);
 const PORT = 3000;
 const ADMIN_PASSWORD = "2010636075";
-const DB_FILE = path.join(process.cwd(), 'database.json');
+
+// Directory for local file uploads (PDFs, question papers, logos)
+const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  try {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  } catch (e) {
+    console.error("Failed to create uploads directory:", e);
+  }
+}
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Initial Seed Data (matching types.ts structure)
-const INITIAL_DB = {
-  students: [],
-  attendance: [],
-  folders: [
-    { id: 'f-1', name: 'Mathematics Core', type: 'question', parentId: null },
-    { id: 'f-2', name: 'Science Mechanics & Light', type: 'question', parentId: null },
-    { id: 'f-3', name: 'General Science Questions', type: 'question', parentId: null },
-    { id: 'f-4', name: 'Exam Sheets 2026', type: 'document', parentId: null },
-    { id: 'f-5', name: 'Lecture Modules', type: 'document', parentId: null }
-  ],
-  questions: [
-    {
-      id: 'q-1',
-      title: 'Algebraic Identity Proof',
-      content: 'Prove the standard algebraic identity $(a+b)^2 = a^2 + 2ab + b^2$ using geometric area decomposition. Draw or describe a square of side length $(a+b)$ subdivided into smaller squares and rectangles.',
-      subject: 'Math',
-      chapter: 'Algebraic Expressions',
-      classLevel: 'Class 8',
-      difficulty: 'Medium',
-      tags: ['Algebra', 'Identities', 'Proof'],
-      isFavorite: true,
-      isArchived: false,
-      folderId: 'f-1',
-      createdAt: '2026-06-15T10:00:00Z',
-    },
-    {
-      id: 'q-2',
-      title: 'Unitary Method calculation',
-      content: 'If 15 workers can build a wall in 45 hours, how many workers are needed to complete the same wall in 25 hours, assuming all workers work at the same rate?',
-      subject: 'Math',
-      chapter: 'Arithmetic',
-      classLevel: 'Class 6',
-      difficulty: 'Easy',
-      tags: ['Arithmetic', 'Unitary Method', 'Ratios'],
-      isFavorite: false,
-      isArchived: false,
-      folderId: 'f-1',
-      createdAt: '2026-06-20T11:30:00Z',
-    },
-    {
-      id: 'q-3',
-      title: 'Properties of Light Reflection',
-      content: 'Explain the laws of reflection of light. Show that the angle of incidence ($i$) is equal to the angle of reflection ($r$):\n\n$$\\angle i = \\angle r$$\n\nGive two examples of regular reflection from everyday observations.',
-      subject: 'Physics',
-      chapter: 'Light',
-      classLevel: 'Class 7',
-      difficulty: 'Medium',
-      tags: ['Light', 'Reflection', 'Optics'],
-      isFavorite: true,
-      isArchived: false,
-      folderId: 'f-2',
-      createdAt: '2026-06-25T14:15:00Z',
-    },
-    {
-      id: 'q-4',
-      title: 'Structure of the Atom',
-      content: 'Describe Rutherford\'s atomic model and explain why it is compared to the solar system. What are the main limitations of this model? Detail the subatomic particles (protons, neutrons, electrons) and their charges.',
-      subject: 'Chemistry',
-      chapter: 'Structure of Matter',
-      classLevel: 'Class 8',
-      difficulty: 'Hard',
-      tags: ['Atom', 'Rutherford', 'Chemistry'],
-      isFavorite: true,
-      isArchived: false,
-      folderId: 'f-3',
-      createdAt: '2026-07-01T09:45:00Z',
-    },
-    {
-      id: 'q-5',
-      title: 'Photosynthesis Process in Plants',
-      content: 'Explain the process of photosynthesis by which green plants prepare their food. Write down the complete balanced chemical equation representing the conversion of carbon dioxide and water into glucose and oxygen in the presence of sunlight and chlorophyll.',
-      subject: 'Biology',
-      chapter: 'Plant Physiology',
-      classLevel: 'Class 5',
-      difficulty: 'Medium',
-      tags: ['Photosynthesis', 'Plants', 'Biology'],
-      isFavorite: false,
-      isArchived: false,
-      folderId: 'f-3',
-      createdAt: '2026-07-05T16:20:00Z',
-    }
-  ],
-  documents: [
-    {
-      id: 'd-1',
-      title: 'Class 8 Weekly Quiz: Algebraic Expressions',
-      content: '<h1>Class 8 Weekly Assessment - Math & Science Care</h1><p><strong>Subject:</strong> Mathematics (Algebra)<br><strong>Class Level:</strong> Class 8<br><strong>Time Allowed:</strong> 45 Minutes<br><strong>Total Marks:</strong> 25</p><hr><p>Solve the following structural mathematical problems. Ensure that you show each analytical step clearly in your answer booklet.</p><h3>Question 1 (10 Marks)</h3><p>Evaluate the expression and find its value when $a=3, b=2$:</p><div class="math-block">$$E = (2a + 3b)^2 - (2a - 3b)^2$$</div><h3>Question 2 (15 Marks)</h3><p>Verify whether the algebraic identity holds true for $x=5$:</p><div class="math-block">$$(x + 3)(x + 5) = x^2 + 8x + 15$$</div>',
-      folderId: 'f-4',
-      language: 'en',
-      lastEdited: '2026-07-08T18:00:00Z',
-      margins: { top: 20, bottom: 20, left: 20, right: 20 },
-      fontFamily: 'Calibri',
-      fontSize: 12,
-      customFooter: 'Cared by: Nion Hassan Nirjon',
-      pageNumbers: true,
-    },
-    {
-      id: 'd-2',
-      title: 'পদার্থবিজ্ঞানঃ গতিবিদ্যা ও বলের সূত্র (Physics Class 8 Lecture Sheet)',
-      content: '<h1>পদার্থবিজ্ঞানঃ গতি ও বলের সূত্রাবলি (Class 8 Lecture Sheet)</h1><p><strong>অধ্যায়ঃ</strong> গতিবিদ্যা এবং নিউটনের বলবিদ্যা<br><strong>তত্ত্বাবধানেঃ</strong> নিয়ন হাসান নির্জন (Nion Hassan Nirjon)</p><hr><p>গতি ও বল সম্পর্কিত গুরুত্বপূর্ণ সুত্রসমূহ এবং বাস্তবভিত্তিক গাণিতিক সমস্যা নিচে দেওয়া হলো। এই সুত্রগুলো পদার্থবিজ্ঞানের গতিবিদ্যার মূল ভিত্তি।</p><h3>১. সমবেগের ক্ষেত্রে দূরত্বঃ</h3><div class="math-block">$$s = vt$$</div><h3>২. সমত্বরণে চলমান বস্তুর গাণিতিক সমীকরণসমূহঃ</h3><p>ক) শেষ বেগ: $v = u + at$</p><p>খ) অতিক্রান্ত দূরত্ব: $s = ut + \\frac{1}{2}at^2$</p><p>গ) শেষ বেগের বর্গ: $v^2 = u^2 + 2as$</p><hr><p><strong>গাণিতিক উদাহরণ:</strong> একটি স্থির গাড়ি $2\\text{ m/s}^2$ সুষম ত্বরণে $10\\text{ s}$ চলল। অতিক্রান্ত দূরত্ব নির্ণয় করো।</p><p><strong>সমাধান:</strong> এখানে আদিবেগ $u = 0$, ত্বরণ $a = 2\\text{ m/s}^2$, সময় $t = 10\\text{ s}$।</p><p>সুত্র বসিয়ে পাই: $s = ut + \\frac{1}{2}at^2 \\Rightarrow s = 0 \\times 10 + \\frac{1}{2} \\times 2 \\times 10^2 = 100\\text{ meters}$।</p>',
-      folderId: 'f-5',
-      language: 'bn',
-      lastEdited: '2026-07-09T20:30:00Z',
-      margins: { top: 25, bottom: 25, left: 25, right: 25 },
-      fontFamily: 'Kalpurush',
-      fontSize: 14,
-      customFooter: 'Cared by: Nion Hassan Nirjon',
-      pageNumbers: true,
-    }
-  ],
-  presentations: [
-    {
-      id: 'p-1',
-      title: 'Introduction to Quantum Theory',
-      theme: 'dark',
-      lastEdited: '2026-07-09T22:00:00Z',
-      slides: [
-        {
-          id: 'p1-s1',
-          title: 'Quantum Physics Demystified',
-          background: 'bg-slate-900',
-          notes: 'Introduce yourself and set the stage for modern quantum mechanics. Emphasize that classical mechanics failed at atomic levels.',
-          elements: [
-            {
-              id: 'p1-s1-e1',
-              type: 'text',
-              content: '# Quantum Physics\n## Masterclass Lecture Series\n\nInstructor: **Nion Hassan Nirjon**\n*Math & Science Care*',
-              x: 10,
-              y: 25,
-              width: 80,
-              height: 50,
-              style: { color: '#f8fafc', fontSize: 24, fontFamily: 'Calibri', textAlign: 'center' }
-            }
-          ]
-        },
-        {
-          id: 'p1-s2',
-          title: 'Planck\'s Quantum Hypothesis',
-          background: 'bg-slate-900',
-          notes: 'Explain Max Planck\'s 1900 discovery regarding blackbody radiation. Energy is not continuous, but packet-based.',
-          elements: [
-            {
-              id: 'p1-s2-e1',
-              type: 'text',
-              content: 'In 1900, Max Planck proposed that electromagnetic energy could only be emitted or absorbed in discrete packets, which he called **quanta**.\n\nThe energy $E$ of a single quantum is proportional to its frequency $f$:',
-              x: 8,
-              y: 18,
-              width: 84,
-              height: 30,
-              style: { color: '#e2e8f0', fontSize: 18, fontFamily: 'Calibri', textAlign: 'left' }
-            },
-            {
-              id: 'p1-s2-e2',
-              type: 'text',
-              content: '$$E = h f$$',
-              x: 15,
-              y: 52,
-              width: 70,
-              height: 20,
-              style: { color: '#38bdf8', fontSize: 32, fontFamily: 'Courier New', textAlign: 'center' }
-            },
-            {
-              id: 'p1-s2-e3',
-              type: 'text',
-              content: 'Where **$h$** is Planck\'s constant: \n$$h \\approx 6.626 \\times 10^{-34} \\text{ J}\\cdot\\text{s}$$',
-              x: 8,
-              y: 75,
-              width: 84,
-              height: 15,
-              style: { color: '#94a3b8', fontSize: 14, fontFamily: 'Calibri', textAlign: 'center' }
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  activities: [
-    { id: 'act-1', timestamp: '2026-07-10T10:00:00Z', module: 'System', action: 'Database Initialized', details: 'Tuition portal fully initialized with realistic demonstration records.', type: 'success' },
-    { id: 'act-2', timestamp: '2026-07-10T11:15:00Z', module: 'Question Bank', action: 'Question Created', details: 'Created redox balancing question in organic chemistry.', type: 'info' },
-    { id: 'act-3', timestamp: '2026-07-10T14:30:00Z', module: 'Attendance', action: 'Attendance Recorded', details: 'Daily attendance initialized for Class 9 Delta Batch.', type: 'warning' },
-    { id: 'act-4', timestamp: '2026-07-10T16:02:00Z', module: 'Attendance', action: 'Student Logged', details: 'Abrar Shahriar marked PRESENT for Alpha Batch.', type: 'success' },
-    { id: 'act-5', timestamp: '2026-07-10T17:05:00Z', module: 'Documents', action: 'Document Compiled', details: 'Compiled "HSC Weekly Quiz: Calculus Limits" as a clean PDF.', type: 'info' }
-  ],
-  settings: {
-    instituteName: 'Math & Science Care',
-    logoUrl: '/app_logo.jpg',
-    themeAccent: 'emerald',
-    darkMode: true,
-    customFooterText: 'Cared by: Nion Hassan Nirjon',
-    autoSaveInterval: 10,
-    smsServiceEnabled: true
-  },
-  exams: [],
-  examResults: [],
-  uploadedFiles: [],
-  feePayments: [],
-  sms_logs: []
-};
-
-// Ensure uploads folder exists
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
 app.use('/uploads', express.static(UPLOADS_DIR));
-
-// Database CRUD Helper Functions
-function loadDb(): any {
-  if (!fs.existsSync(DB_FILE)) {
-    try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(INITIAL_DB, null, 2), 'utf-8');
-    } catch (e) {
-      console.error("Error creating database file:", e);
-    }
-    return INITIAL_DB;
-  }
-  try {
-    const data = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
-    if (!parsed.uploadedFiles) {
-      parsed.uploadedFiles = [];
-    }
-    if (!parsed.feePayments) {
-      parsed.feePayments = [];
-    }
-    if (!parsed.sms_logs) {
-      parsed.sms_logs = [];
-    }
-    return parsed;
-  } catch (e) {
-    console.error("Error parsing database.json, using initial state:", e);
-    return INITIAL_DB;
-  }
-}
-
-function saveDb(data: any): void {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (e) {
-    console.error("Error writing database.json:", e);
-  }
-}
 
 // Security Authentication Middleware
 function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -293,9 +60,13 @@ app.post('/api/auth', (req, res) => {
 
 // Proxy route for automated SMS sending to sms.automas.com.bd Cloud REST API (v3)
 app.post('/api/send-sms', authMiddleware, async (req, res) => {
-  const db = loadDb();
-  if (db.settings && db.settings.smsServiceEnabled === false) {
-    return res.json({ success: false, error: "SMS service is currently disabled by the administrator." });
+  try {
+    const { data: settingsData } = await supabase.from('settings').select('sms_service_enabled').limit(1);
+    if (settingsData && settingsData.length > 0 && settingsData[0].sms_service_enabled === false) {
+      return res.json({ success: false, error: "SMS service is currently disabled by the administrator." });
+    }
+  } catch (err) {
+    console.warn("Could not check sms_service_enabled setting from Supabase:", err);
   }
 
   const rawNumber = req.body.number || req.body.msisdn;
@@ -305,10 +76,10 @@ app.post('/api/send-sms', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: "Missing recipient number or message body" });
   }
 
-  // Sanitize phone number (remove non-digits like '+', spaces, or dashes)
+  // Sanitize phone number (remove non-digits)
   let cleanNumber = String(rawNumber).trim().replace(/\D/g, '');
   if (cleanNumber.length === 11 && cleanNumber.startsWith('01')) {
-    cleanNumber = '88' + cleanNumber; // Ensure 8801... standard BD format for gateway
+    cleanNumber = '88' + cleanNumber; // Ensure 8801... standard BD format
   }
 
   const apiKey = req.body.apikey || (process.env.AUTOMAS_SMS_API_KEY && process.env.AUTOMAS_SMS_API_KEY !== "056262a0eba72b8d9f7b14482f38a6d8" ? process.env.AUTOMAS_SMS_API_KEY : "510b17b71592af35dac9cba3d019dc30");
@@ -340,7 +111,6 @@ app.post('/api/send-sms', authMiddleware, async (req, res) => {
       responseJson = JSON.parse(responseText);
     } catch {}
 
-    // Parse Automas API response structure & status codes strictly
     let isSuccess = false;
     let errorMessage = "";
 
@@ -445,11 +215,9 @@ app.get('/api/sms-balance', authMiddleware, async (req, res) => {
     try {
       responseJson = JSON.parse(responseText);
     } catch {
-      // If response is raw number or not valid JSON, parse it as { response: text }
       responseJson = { response: responseText.trim() };
     }
 
-    // Attempt to extract balance to update our in-memory cache
     let balanceVal = "";
     if (responseJson.balance !== undefined) {
       balanceVal = String(responseJson.balance);
@@ -486,18 +254,17 @@ app.get('/api/sms-balance', authMiddleware, async (req, res) => {
   }
 });
 
-// POST endpoint to update the in-memory lastKnownSmsBalance cache from client side (GeoIP bypass)
+// POST endpoint to update the in-memory lastKnownSmsBalance cache
 app.post('/api/sms-balance', authMiddleware, (req, res) => {
   const { balance } = req.body;
   if (balance && !isNaN(parseFloat(balance))) {
     lastKnownSmsBalance = parseFloat(balance).toFixed(2);
-    console.log(`[sms.automas.com.bd] Synchronized last known live balance cache to: ${lastKnownSmsBalance}`);
     return res.json({ success: true, balance: lastKnownSmsBalance });
   }
   return res.status(400).json({ error: "Invalid balance format" });
 });
 
-// File Upload Endpoint (Object Storage simulation)
+// File Upload Endpoint
 app.post('/api/upload', authMiddleware, (req, res) => {
   const { fileName, fileData } = req.body;
   if (!fileName || !fileData) {
@@ -511,7 +278,6 @@ app.post('/api/upload', authMiddleware, (req, res) => {
     }
     const buffer = Buffer.from(base64Data, 'base64');
     
-    // Create unique file name
     const ext = path.extname(fileName) || '.pdf';
     const baseName = path.basename(fileName, ext).replace(/[^a-zA-Z0-9]/g, '_');
     const uniqueFileName = `${baseName}_${Date.now()}${ext}`;
@@ -527,47 +293,105 @@ app.post('/api/upload', authMiddleware, (req, res) => {
   }
 });
 
-// Full state read
-app.get('/api/data', authMiddleware, (req, res) => {
-  const db = loadDb();
-  res.json(db);
+const DB_FILE_PATH = path.join(UPLOADS_DIR, 'server_storage.json');
+
+function loadLocalServerDb(): Record<string, any> {
+  try {
+    if (fs.existsSync(DB_FILE_PATH)) {
+      const content = fs.readFileSync(DB_FILE_PATH, 'utf-8');
+      return JSON.parse(content);
+    }
+  } catch (e) {
+    console.warn("Failed reading local server db:", e);
+  }
+  return {
+    students: [],
+    attendance: [],
+    folders: [
+      { id: 'f-1', name: 'Mathematics Core', type: 'question', parentId: null },
+      { id: 'f-2', name: 'Science Mechanics & Light', type: 'question', parentId: null },
+      { id: 'f-3', name: 'General Science Questions', type: 'question', parentId: null },
+      { id: 'f-4', name: 'Exam Sheets 2026', type: 'document', parentId: null },
+      { id: 'f-5', name: 'Lecture Modules', type: 'document', parentId: null },
+    ],
+    questions: [],
+    documents: [],
+    presentations: [],
+    activities: [],
+    settings: {
+      instituteName: 'Math & Science Care',
+      logoUrl: '/app_logo.jpg',
+      themeAccent: 'emerald',
+      darkMode: true,
+      customFooterText: 'Cared by: Nion Hassan Nirjon',
+      autoSaveInterval: 10,
+      smsServiceEnabled: true,
+    },
+    exams: [],
+    examResults: [],
+    uploadedFiles: [],
+    feePayments: [],
+    sms_logs: []
+  };
+}
+
+function saveLocalServerDb(db: Record<string, any>) {
+  try {
+    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(db, null, 2), 'utf-8');
+  } catch (e) {
+    console.error("Failed writing local server db:", e);
+  }
+}
+
+// Full state read (Supabase + Local file store fallback)
+app.get('/api/data', authMiddleware, async (req, res) => {
+  const localDb = loadLocalServerDb();
+  try {
+    const supabaseDb = await fetchAllDataFromSupabase();
+    if (supabaseDb) {
+      Object.keys(supabaseDb).forEach((k) => {
+        const val = (supabaseDb as any)[k];
+        if (Array.isArray(val) && val.length > 0) {
+          localDb[k] = val;
+        } else if (val && typeof val === 'object' && Object.keys(val).length > 0 && k === 'settings') {
+          localDb[k] = val;
+        }
+      });
+      saveLocalServerDb(localDb);
+    }
+  } catch (err: any) {
+    console.warn("Notice: Supabase fetch skipped, returning local server db:", err.message || err);
+  }
+  return res.json(localDb);
 });
 
-// Partial update & broadcast to active sessions
-app.post('/api/data', authMiddleware, (req, res) => {
+// Partial update to server store & broadcast to active sessions
+app.post('/api/data', authMiddleware, async (req, res) => {
   const { key, data, clientId } = req.body;
   if (!key) {
     return res.status(400).json({ error: "Missing collection key" });
   }
 
-  const db = loadDb();
+  try {
+    const localDb = loadLocalServerDb();
 
-  if (key === 'students') {
-    const activeStudentIds = new Set(data.map((s: any) => s.id));
-    if (db.attendance) {
-      db.attendance = db.attendance.filter((a: any) => activeStudentIds.has(a.studentId));
-    }
-    if (db.feePayments) {
-      db.feePayments = db.feePayments.filter((p: any) => activeStudentIds.has(p.studentId));
-    }
-  }
-
-  if (key === 'feePayments') {
-    const existingPayments = db.feePayments || [];
-    for (const oldPay of existingPayments) {
-      if (oldPay.status === 'Paid') {
-        const incomingPay = data.find((p: any) => p.id === oldPay.id);
+    // Constraint violation check for fee payments
+    if (key === 'feePayments') {
+      const existingPayments = localDb.feePayments || [];
+      const oldPaidPayments = existingPayments.filter((p: any) => p.status === 'Paid');
+      const incomingList = Array.isArray(data) ? data : [data];
+      for (const oldPay of oldPaidPayments) {
+        const incomingPay = incomingList.find((p: any) => p.id === oldPay.id);
         if (!incomingPay) {
-          const studentExists = db.students && db.students.some((s: any) => s.id === oldPay.studentId);
-          if (studentExists) {
+          const student = (localDb.students || []).find((s: any) => s.id === oldPay.studentId);
+          if (student) {
             return res.status(400).json({ error: "Constraint violation: Cannot delete a record that is already marked as Paid." });
           }
-        }
-        if (incomingPay) {
+        } else {
           if (
             incomingPay.status !== 'Paid' ||
-            incomingPay.amount !== oldPay.amount ||
-            incomingPay.paidAmount !== oldPay.paidAmount ||
+            Number(incomingPay.amount) !== Number(oldPay.amount) ||
+            Number(incomingPay.paidAmount) !== Number(oldPay.paidAmount) ||
             incomingPay.paymentDate !== oldPay.paymentDate ||
             incomingPay.studentId !== oldPay.studentId ||
             incomingPay.month !== oldPay.month
@@ -577,44 +401,102 @@ app.post('/api/data', authMiddleware, (req, res) => {
         }
       }
     }
-  }
 
-  db[key] = data;
-  saveDb(db);
+    localDb[key] = data;
+    saveLocalServerDb(localDb);
 
-  // Broadcast delta to all other connected clients
-  const payload = JSON.stringify({ key, data, clientId });
-  sseClients.forEach((client) => {
-    if (client.id !== clientId) {
-      try {
-        client.res.write(`data: ${payload}\n\n`);
-      } catch (e) {
-        console.error("Failed to write to client stream:", e);
+    // Sync to Supabase in background
+    saveCollectionToSupabase(key, data).catch((err) => {
+      console.warn(`Supabase background save notice for ${key}:`, err.message || err);
+    });
+
+    // Broadcast delta to all other connected clients
+    const payload = JSON.stringify({ key, data, clientId });
+    sseClients.forEach((client) => {
+      if (client.id !== clientId) {
+        try {
+          client.res.write(`data: ${payload}\n\n`);
+        } catch (e) {
+          console.error("Failed to write to client stream:", e);
+        }
       }
-    }
-  });
+    });
 
-  return res.json({ success: true });
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error(`Error saving collection ${key}:`, err);
+    return res.status(500).json({ error: err.message || "Failed to update server database" });
+  }
 });
 
 // Reset database and broadcast
-app.post('/api/reset', authMiddleware, (req, res) => {
+app.post('/api/reset', authMiddleware, async (req, res) => {
   const { clientId } = req.body;
-  saveDb(INITIAL_DB);
+  try {
+    const defaultDb = {
+      students: [],
+      attendance: [],
+      folders: [
+        { id: 'f-1', name: 'Mathematics Core', type: 'question', parentId: null },
+        { id: 'f-2', name: 'Science Mechanics & Light', type: 'question', parentId: null },
+        { id: 'f-3', name: 'General Science Questions', type: 'question', parentId: null },
+        { id: 'f-4', name: 'Exam Sheets 2026', type: 'document', parentId: null },
+        { id: 'f-5', name: 'Lecture Modules', type: 'document', parentId: null },
+      ],
+      questions: [],
+      documents: [],
+      presentations: [],
+      activities: [],
+      settings: {
+        instituteName: 'Math & Science Care',
+        logoUrl: '/app_logo.jpg',
+        themeAccent: 'emerald',
+        darkMode: true,
+        customFooterText: 'Cared by: Nion Hassan Nirjon',
+        autoSaveInterval: 10,
+        smsServiceEnabled: true,
+      },
+      exams: [],
+      examResults: [],
+      uploadedFiles: [],
+      feePayments: [],
+      sms_logs: []
+    };
+    saveLocalServerDb(defaultDb);
 
-  // Broadcast reset event to all other clients
-  const payload = JSON.stringify({ reset: true, clientId });
-  sseClients.forEach((client) => {
-    if (client.id !== clientId) {
-      try {
-        client.res.write(`data: ${payload}\n\n`);
-      } catch (e) {
-        console.error("Failed to write to client stream during reset:", e);
-      }
+    try {
+      await supabase.from('attendance').delete().neq('id', '___');
+      await supabase.from('exam_results').delete().neq('id', '___');
+      await supabase.from('exams').delete().neq('id', '___');
+      await supabase.from('fee_payments').delete().neq('id', '___');
+      await supabase.from('students').delete().neq('id', '___');
+      await supabase.from('questions').delete().neq('id', '___');
+      await supabase.from('documents').delete().neq('id', '___');
+      await supabase.from('presentations').delete().neq('id', '___');
+      await supabase.from('activities').delete().neq('id', '___');
+      await supabase.from('uploaded_files').delete().neq('id', '___');
+      await supabase.from('sms_logs').delete().neq('id', '___');
+    } catch (e: any) {
+      console.warn("Supabase reset notice:", e.message || e);
     }
-  });
 
-  return res.json({ success: true });
+    // Broadcast reset event
+    const payload = JSON.stringify({ reset: true, clientId });
+    sseClients.forEach((client) => {
+      if (client.id !== clientId) {
+        try {
+          client.res.write(`data: ${payload}\n\n`);
+        } catch (e) {
+          console.error("Failed to write to client stream during reset:", e);
+        }
+      }
+    });
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error resetting database:", err);
+    return res.status(500).json({ error: err.message || "Failed to reset database" });
+  }
 });
 
 // SSE Stream endpoint for live updates
@@ -635,10 +517,8 @@ app.get('/api/sync/stream', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  // Send an initial keepalive comment
   res.write(': keepalive\n\n');
 
-  // Maintain active connection via periodic ping
   const pingInterval = setInterval(() => {
     try {
       res.write(': ping\n\n');
@@ -657,7 +537,6 @@ app.get('/api/sync/stream', (req, res) => {
 });
 
 async function start() {
-  // Mount Vite middleware in development or serve static built files in production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: {
