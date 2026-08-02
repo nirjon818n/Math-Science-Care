@@ -19,11 +19,41 @@ const app = express();
 const server = http.createServer(app);
 const PORT = 3000;
 
+// Helper to clean environment string values from quotes/spaces
+function cleanEnvString(val: string | undefined, defaultVal: string = ''): string {
+  if (!val) return defaultVal;
+  let cleaned = val.trim();
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned || defaultVal;
+}
+
+const maskKey = (key: string) => {
+  if (!key) return "<EMPTY>";
+  if (key.length <= 8) return key;
+  return `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+};
+
 // Read configuration from environment variables with bcrypt hashing
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || 
   bcrypt.hashSync(process.env.ADMIN_PASSWORD || "2010636075", 10);
-const AUTOMAS_SMS_API_KEY = process.env.AUTOMAS_SMS_API_KEY || "510b17b71592af35dac9cba3d019dc30";
-const AUTOMAS_SMS_SENDER_ID = process.env.AUTOMAS_SMS_SENDER_ID || "8809617639923";
+
+const rawApiKey = process.env.AUTOMAS_SMS_API_KEY;
+let AUTOMAS_SMS_API_KEY = cleanEnvString(rawApiKey, "510b17b71592af35dac9cba3d019dc30");
+// If environment variable has the invalid key 056262a0eba72b8d9f7b14482f38a6d8, override with working key
+if (AUTOMAS_SMS_API_KEY === "056262a0eba72b8d9f7b14482f38a6d8" || !AUTOMAS_SMS_API_KEY) {
+  AUTOMAS_SMS_API_KEY = "510b17b71592af35dac9cba3d019dc30";
+}
+
+const rawSenderId = process.env.AUTOMAS_SMS_SENDER_ID;
+let AUTOMAS_SMS_SENDER_ID = cleanEnvString(rawSenderId, "8809617639923");
+if (AUTOMAS_SMS_SENDER_ID !== "8809617639923") {
+  AUTOMAS_SMS_SENDER_ID = "8809617639923";
+}
+
+console.log(`[SMS Config] AUTOMAS_SMS_API_KEY active: ${maskKey(AUTOMAS_SMS_API_KEY)} (Length: ${AUTOMAS_SMS_API_KEY.length}, Source: ${rawApiKey ? 'process.env' : 'default fallback'})`);
+console.log(`[SMS Config] AUTOMAS_SMS_SENDER_ID active: ${maskKey(AUTOMAS_SMS_SENDER_ID)} (Length: ${AUTOMAS_SMS_SENDER_ID.length}, Source: ${rawSenderId ? 'process.env' : 'default fallback'})`);
 
 /**
  * Helper to securely verify password against bcrypt hash
@@ -384,7 +414,7 @@ function loadLocalServerDb(): Record<string, any> {
     presentations: [],
     activities: [],
     settings: {
-      instituteName: 'Math & Science Care',
+      instituteName: 'MSCare Center',
       logoUrl: '/app_logo.jpg',
       themeAccent: 'emerald',
       darkMode: true,
@@ -505,7 +535,7 @@ app.post('/api/reset', authMiddleware, async (req, res) => {
       presentations: [],
       activities: [],
       settings: {
-        instituteName: 'Math & Science Care',
+        instituteName: 'MSCare Center',
         logoUrl: '/app_logo.jpg',
         themeAccent: 'emerald',
         darkMode: true,

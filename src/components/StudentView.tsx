@@ -427,7 +427,7 @@ export default function StudentView() {
       const batch_time = student.batchTime || 'N/A';
       const monthly_fee = student.monthlyFee ? `৳${student.monthlyFee.toLocaleString()}` : 'N/A';
 
-      const messageText = `প্রিয় অভিভাবক,\nআসসালামু আলাইকুম।\n\"Math & Science Care\"-এর প্রতি আস্থা রাখার জন্য আন্তরিক ধন্যবাদ।\nআমরা আনন্দের সঙ্গে জানাচ্ছি যে, \"শিক্ষার্থী ${student_name}\"-এর ভর্তি সফলভাবে সম্পন্ন হয়েছে।\nভর্তির তথ্য:\n• শিক্ষার্থী: \"${student_name}\"\n• শ্রেণি: ${class_level}\n• ব্যাচ: ${batch_time}\n• মাসিক বেতন: ${monthly_fee}\nনিয়মিত ক্লাস, পরীক্ষা ও অগ্রগতির মাধ্যমে শিক্ষার্থীর সর্বোচ্চ উন্নয়নে আমরা প্রতিশ্রুতিবদ্ধ।\nযেকোনো প্রয়োজনে যোগাযোগ করুন:\n📞 01984428632\nশিক্ষার্থীর সফলতা ও উজ্জ্বল ভবিষ্যৎ কামনা করি।\nধন্যবাদান্তে,\nMath & Science Care`;
+      const messageText = `প্রিয় অভিভাবক,\nআসসালামু আলাইকুম।\n\"MSCare Center\"-এর প্রতি আস্থা রাখার জন্য আন্তরিক ধন্যবাদ।\nআমরা আনন্দের সঙ্গে জানাচ্ছি যে, \"শিক্ষার্থী ${student_name}\"-এর ভর্তি সফলভাবে সম্পন্ন হয়েছে।\nভর্তির তথ্য:\n• শিক্ষার্থী: \"${student_name}\"\n• শ্রেণি: ${class_level}\n• ব্যাচ: ${batch_time}\n• মাসিক বেতন: ${monthly_fee}\nনিয়মিত ক্লাস, পরীক্ষা ও অগ্রগতির মাধ্যমে শিক্ষার্থীর সর্বোচ্চ উন্নয়নে আমরা প্রতিশ্রুতিবদ্ধ।\nযেকোনো প্রয়োজনে যোগাযোগ করুন:\n📞 01984428632\nশিক্ষার্থীর সফলতা ও উজ্জ্বল ভবিষ্যৎ কামনা করি।\nধন্যবাদান্তে,\nMSCare Center`;
 
       // Clean and standardize phone numbers to 11 digits starting with '01'
       const cleanPhoneNumber = (phone: string): string => {

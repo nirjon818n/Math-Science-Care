@@ -284,7 +284,7 @@ export default function TuitionFeeTrackerView() {
       const yearStr = mParts[0] || '';
       const selectedMonthLabel = `${getBengaliMonthOnly(monthNum)} ${yearStr}`;
 
-      const messageContent = `আসসালামু আলাইকুম।\nপ্রিয় অভিভাবক,\n\"শিক্ষার্থী ${confirmingStudent.name}\"-এর ${selectedMonthLabel} মাসের টিউশন ফি ৳${receivedAmount} সফলভাবে গ্রহণ করা হয়েছে।\nআপনার সহযোগিতার জন্য আন্তরিক ধন্যবাদ।\nধন্যবাদান্তে,\nMath & Science Care`;
+      const messageContent = `আসসালামু আলাইকুম।\nপ্রিয় অভিভাবক,\n\"শিক্ষার্থী ${confirmingStudent.name}\"-এর ${selectedMonthLabel} মাসের টিউশন ফি ৳${receivedAmount} সফলভাবে গ্রহণ করা হয়েছে।\nআপনার সহযোগিতার জন্য আন্তরিক ধন্যবাদ।\nধন্যবাদান্তে,\nMSCare Center`;
 
       // Dispatch parallel API requests
       validPhones.forEach(async (phone) => {
@@ -1009,7 +1009,7 @@ export default function TuitionFeeTrackerView() {
                         <div className="relative pb-3 border-b border-slate-200 flex flex-col items-center justify-center text-center">
                           <div className="space-y-0.5">
                             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950 font-serif">
-                              Math & Science Care
+                              MSCare Center
                             </h1>
                             <p className="text-[11px] sm:text-[12px] italic font-serif text-slate-800 leading-normal">
                               Care with Logic, Intelligence for Excellence

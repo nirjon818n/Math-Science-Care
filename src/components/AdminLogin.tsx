@@ -68,7 +68,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
             Admin Access Gateway
           </h1>
           <p className="text-slate-400 text-xs text-center mt-2 max-w-xs leading-relaxed">
-            Math & Science Care management console. Access is encrypted and audited.
+            MSCare Center management console. Access is encrypted and audited.
           </p>
         </div>
 

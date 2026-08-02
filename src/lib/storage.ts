@@ -46,7 +46,7 @@ const INITIAL_FOLDERS: Folder[] = [
 ];
 
 const INITIAL_SETTINGS: AppSettings = {
-  instituteName: 'Math & Science Care',
+  instituteName: 'MSCare Center',
   logoUrl: '/app_logo.jpg',
   themeAccent: 'emerald',
   darkMode: true,

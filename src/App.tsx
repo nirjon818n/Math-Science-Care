@@ -16,6 +16,7 @@ import SettingsView from './components/SettingsView';
 import ExamPortalView from './components/ExamPortalView';
 import TuitionFeeTrackerView from './components/TuitionFeeTrackerView';
 import SmsDashboard from './components/SmsDashboard';
+import BulkSmsView from './components/BulkSmsView';
 import GlobalSearch from './components/GlobalSearch';
 import DhakaClock from './components/DhakaClock';
 import AdminLogin from './components/AdminLogin';
@@ -49,6 +50,8 @@ function AppContent() {
         return <DocumentManagerView />;
       case 'SMS Dashboard':
         return <SmsDashboard />;
+      case 'Bulk SMS / Notice':
+        return <BulkSmsView />;
       case 'Activity History':
         return <HistoryView />;
       case 'Settings':

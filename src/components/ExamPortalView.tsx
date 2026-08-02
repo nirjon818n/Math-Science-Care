@@ -339,7 +339,7 @@ export default function ExamPortalView() {
       }
 
       const examTypeText = exam.type === 'Weekly' ? 'সাপ্তাহিক' : 'মাসিক';
-      const messageContent = `আসসালামু আলাইকুম。\nপ্রিয় অভিভাবক,\n\"শিক্ষার্থী ${student.name}\"-এর ${examTypeText} ${exam.name} পরীক্ষার ফলাফল প্রকাশ করা হয়েছে。\nপ্রাপ্ত নম্বর: ${obtainedMarksText}/${exam.totalMarks}\nশিক্ষার্থীর আরও উন্নতির জন্য নিয়মিত অনুশীলন ও উপস্থিতি নিশ্চিত করার অনুরোধ রইল。\nধন্যবাদান্তে,\nMath & Science Care`;
+      const messageContent = `আসসালামু আলাইকুম。\nপ্রিয় অভিভাবক,\n\"শিক্ষার্থী ${student.name}\"-এর ${examTypeText} ${exam.name} পরীক্ষার ফলাফল প্রকাশ করা হয়েছে。\nপ্রাপ্ত নম্বর: ${obtainedMarksText}/${exam.totalMarks}\nশিক্ষার্থীর আরও উন্নতির জন্য নিয়মিত অনুশীলন ও উপস্থিতি নিশ্চিত করার অনুরোধ রইল。\nধন্যবাদান্তে,\nMSCare Center`;
 
       const fatherPhone = student.fathersPhone || student.parentPhone || '';
       const motherPhone = student.mothersPhone || '';
@@ -857,7 +857,7 @@ export default function ExamPortalView() {
       </head>
       <body>
         <div class="header">
-          <h1 class="brand-title">Math & Science Care</h1>
+          <h1 class="brand-title">MSCare Center</h1>
           <p class="brand-tagline">Care with Logic, Intelligence for Excellence</p>
           <p class="brand-location">Agrabad, Chittagong</p>
           <div class="title-divider"></div>
@@ -919,7 +919,7 @@ export default function ExamPortalView() {
         </div>
 
         <div class="footer">
-          Generated automatically via Math Science Care Academic Portal on ${new Date().toLocaleDateString()}.
+          Generated automatically via MSCare Center Academic Portal on ${new Date().toLocaleDateString()}.
         </div>
 
         <script>

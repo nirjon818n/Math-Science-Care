@@ -479,7 +479,7 @@ export default function QuestionBankView() {
     } else {
       // Dynamic simulated content generation for pre-seeded files to be highly realistic and operational!
       const content = `==================================================\n` +
-        `MATH & SCIENCE CARE - SECURE REPOSITORY\n` +
+        `MSCARE CENTER - SECURE REPOSITORY\n` +
         `==================================================\n\n` +
         `File Name: ${file.name}\n` +
         `Document Type: Academic Question Bank & Syllabus\n` +

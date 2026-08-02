@@ -238,7 +238,7 @@ export const mappers = {
     sms_service_enabled: s.smsServiceEnabled !== false,
   }),
   dbToSettings: (row: any): AppSettings => ({
-    instituteName: row?.institute_name || 'Math & Science Care',
+    instituteName: row?.institute_name || 'MSCare Center',
     logoUrl: row?.logo_url || '/app_logo.jpg',
     themeAccent: row?.theme_accent || 'emerald',
     darkMode: row?.dark_mode !== false,

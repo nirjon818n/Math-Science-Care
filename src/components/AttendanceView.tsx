@@ -163,8 +163,8 @@ export default function AttendanceView() {
 
     const current_date = getFormattedDate(selectedDate);
     const messageText = status === AttendanceStatus.Present
-      ? `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"Math & Science Care\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল। ধন্যবাদ।`
-      : `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"Math & Science Care\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল না। অনুগ্রহ করে বিষয়টি খেয়াল করুন।\nযোগাযোগ: 01984428632`;
+      ? `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"MSCare Center\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল। ধন্যবাদ।`
+      : `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"MSCare Center\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল না। অনুগ্রহ করে বিষয়টি খেয়াল করুন।\nযোগাযোগ: 01984428632`;
 
     // Standardize/Clean Bangladeshi mobile numbers (exactly 11 digits starting with '01')
     const cleanPhoneNumber = (phone: string): string => {
@@ -430,7 +430,7 @@ export default function AttendanceView() {
       ).length;
 
       const studentName = student.nameBangla || student.name;
-      const messageContent = `আসসালামু আলাইকুম।\nপ্রিয় অভিভাবক,\n${monthName} ${reportingYear} মাসে \"শিক্ষার্থী ${studentName}\"-এর উপস্থিতির সারসংক্ষেপ:\n• মোট ক্লাস: ${totalClasses}টি\n• উপস্থিত: ${presentCount}টি\n• অনুপস্থিত: ${absentCount}টি\nশিক্ষার্থীর নিয়মিত উপস্থিতি ও পড়াশোনায় সহযোগিতার জন্য আন্তরিক ধন্যবাদ।\nঅনুগ্রহ করে ${monthName} মাসের টিউশন ফি যথারীতি সময়ে পরিশোধ করার জন্য বিনীত অনুরোধ রইল।\nধন্যবাদান্তে,\nMath & Science Care`;
+      const messageContent = `আসসালামু আলাইকুম।\nপ্রিয় অভিভাবক,\n${monthName} ${reportingYear} মাসে \"শিক্ষার্থী ${studentName}\"-এর উপস্থিতির সারসংক্ষেপ:\n• মোট ক্লাস: ${totalClasses}টি\n• উপস্থিত: ${presentCount}টি\n• অনুপস্থিত: ${absentCount}টি\nশিক্ষার্থীর নিয়মিত উপস্থিতি ও পড়াশোনায় সহযোগিতার জন্য আন্তরিক ধন্যবাদ।\nঅনুগ্রহ করে ${monthName} মাসের টিউশন ফি যথারীতি সময়ে পরিশোধ করার জন্য বিনীত অনুরোধ রইল।\nধন্যবাদান্তে,\nMSCare Center`;
 
       try {
         const result = await sendMonthlyReport(student, messageContent);
@@ -1049,7 +1049,7 @@ export default function AttendanceView() {
         const previewStudent = activeStudents[0];
         const previewStats = previewStudent ? getStudentStatsForMonth(previewStudent.id) : { totalClasses: 0, presentCount: 0, absentCount: 0 };
         const previewMessage = previewStudent
-          ? `আসসালামু আলাইকুম।\nপ্রিয় অভিভাবক,\n${getBengaliMonthName(reportingMonth)} ${reportingYear} মাসে \"শিক্ষার্থী ${previewStudent.nameBangla || previewStudent.name}\"-এর উপস্থিতির সারসংক্ষেপ:\n• মোট ক্লাস: ${previewStats.totalClasses}টি\n• উপস্থিত: ${previewStats.presentCount}টি\n• অনুপস্থিত: ${previewStats.absentCount}টি\nশিক্ষার্থীর নিয়মিত উপস্থিতি ও পড়াশোনায় সহযোগিতার জন্য আন্তরিক ধন্যবাদ।\nঅনুগ্রহ করে ${getBengaliMonthName(reportingMonth)} মাসের টিউশন ফি যথারীতি সময়ে পরিশোধ করার জন্য বিনীত অনুরোধ রইল।\nধন্যবাদান্তে,\nMath & Science Care`
+          ? `আসসালামু আলাইকুম।\nপ্রিয় অভিভাবক,\n${getBengaliMonthName(reportingMonth)} ${reportingYear} মাসে \"শিক্ষার্থী ${previewStudent.nameBangla || previewStudent.name}\"-এর উপস্থিতির সারসংক্ষেপ:\n• মোট ক্লাস: ${previewStats.totalClasses}টি\n• উপস্থিত: ${previewStats.presentCount}টি\n• অনুপস্থিত: ${previewStats.absentCount}টি\nশিক্ষার্থীর নিয়মিত উপস্থিতি ও পড়াশোনায় সহযোগিতার জন্য আন্তরিক ধন্যবাদ।\nঅনুগ্রহ করে ${getBengaliMonthName(reportingMonth)} মাসের টিউশন ফি যথারীতি সময়ে পরিশোধ করার জন্য বিনীত অনুরোধ রইল।\nধন্যবাদান্তে,\nMSCare Center`
           : '';
 
         const todayDate = new Date();
@@ -1293,7 +1293,7 @@ export default function AttendanceView() {
         {/* Standard Brand Header */}
         <div className="text-center space-y-1 pb-4 border-b-2 border-slate-200">
           <h1 className="text-3xl font-bold font-serif text-black leading-tight" style={{ fontFamily: "Georgia, serif" }}>
-            Math & Science Care
+            MSCare Center
           </h1>
           <p className="text-sm italic font-serif text-slate-700" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>
             Care with Logic, Intelligence for Excellence
@@ -1366,8 +1366,8 @@ export default function AttendanceView() {
 
         const current_date = getFormattedDate(selectedDate);
         const messageText = status === AttendanceStatus.Present
-          ? `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"Math & Science Care\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল। ধন্যবাদ।`
-          : `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"Math & Science Care\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল না। অনুগ্রহ করে বিষয়টি খেয়াল করুন।\nযোগাযোগ: 01984428632`;
+          ? `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"MSCare Center\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল। ধন্যবাদ।`
+          : `প্রিয় অভিভাবক,\nআজ ${current_date} \"শিক্ষার্থী ${studentName}\" \"MSCare Center\"-এর নির্ধারিত ক্লাসে উপস্থিত ছিল না। অনুগ্রহ করে বিষয়টি খেয়াল করুন।\nযোগাযোগ: 01984428632`;
 
         const copyText = (text: string, successMessage: string) => {
           navigator.clipboard.writeText(text);

@@ -23,6 +23,7 @@ import {
   Coins,
   MessageSquare,
   GraduationCap,
+  Send,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -44,6 +45,7 @@ export default function Sidebar({ onOpenSearch }: SidebarProps) {
     { name: 'Tuition Fee Tracker', icon: Coins },
     { name: 'Document Manager', icon: FileText },
     { name: 'SMS Dashboard', icon: MessageSquare },
+    { name: 'Bulk SMS / Notice', icon: Send },
     { name: 'Search', icon: Search, onClick: onOpenSearch },
     { name: 'Activity History', icon: History },
     { name: 'Settings', icon: Settings },
