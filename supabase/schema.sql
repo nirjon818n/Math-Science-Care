@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS public.sms_logs (
     created_at TEXT DEFAULT NOW()::text
 );
 
--- Row Level Security (RLS) Configuration - Grant Anonymous Access for Public App
+-- Row Level Security (RLS) Configuration - Allow Full Sync Access for App
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.folders ENABLE ROW LEVEL SECURITY;
@@ -181,22 +181,22 @@ ALTER TABLE public.uploaded_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fee_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sms_logs ENABLE ROW LEVEL SECURITY;
 
--- Create Policies for Anon Access
+-- Create Policies for Full Table Access
 DO $$ 
 BEGIN
-    EXECUTE 'CREATE POLICY "Allow anon all on students" ON public.students FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on attendance" ON public.attendance FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on folders" ON public.folders FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on questions" ON public.questions FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on documents" ON public.documents FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on presentations" ON public.presentations FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on activities" ON public.activities FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on settings" ON public.settings FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on exams" ON public.exams FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on exam_results" ON public.exam_results FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on uploaded_files" ON public.uploaded_files FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on fee_payments" ON public.fee_payments FOR ALL USING (true) WITH CHECK (true)';
-    EXECUTE 'CREATE POLICY "Allow anon all on sms_logs" ON public.sms_logs FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on students" ON public.students FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on attendance" ON public.attendance FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on folders" ON public.folders FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on questions" ON public.questions FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on documents" ON public.documents FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on presentations" ON public.presentations FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on activities" ON public.activities FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on settings" ON public.settings FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on exams" ON public.exams FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on exam_results" ON public.exam_results FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on uploaded_files" ON public.uploaded_files FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on fee_payments" ON public.fee_payments FOR ALL USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all on sms_logs" ON public.sms_logs FOR ALL USING (true) WITH CHECK (true)';
 EXCEPTION WHEN OTHERS THEN 
     -- Policies may already exist
 END $$;

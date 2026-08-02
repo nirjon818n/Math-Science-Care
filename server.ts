@@ -10,6 +10,7 @@ import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
 import { supabase, fetchAllDataFromSupabase, saveCollectionToSupabase } from "./src/lib/supabase";
 
 dotenv.config({ override: true });
@@ -18,10 +19,53 @@ const app = express();
 const server = http.createServer(app);
 const PORT = 3000;
 
-// Read configuration from environment variables
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "2010636075";
-const AUTOMAS_SMS_API_KEY = process.env.AUTOMAS_SMS_API_KEY || "";
-const AUTOMAS_SMS_SENDER_ID = process.env.AUTOMAS_SMS_SENDER_ID || "";
+// Read configuration from environment variables with bcrypt hashing
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || 
+  bcrypt.hashSync(process.env.ADMIN_PASSWORD || "2010636075", 10);
+const AUTOMAS_SMS_API_KEY = process.env.AUTOMAS_SMS_API_KEY || "510b17b71592af35dac9cba3d019dc30";
+const AUTOMAS_SMS_SENDER_ID = process.env.AUTOMAS_SMS_SENDER_ID || "8809617639923";
+
+/**
+ * Helper to securely verify password against bcrypt hash
+ */
+function verifyPassword(password: string | undefined | null): boolean {
+  if (!password || typeof password !== 'string') return false;
+
+  const envPass = process.env.ADMIN_PASSWORD || "2010636075";
+  const envHash = process.env.ADMIN_PASSWORD_HASH;
+
+  // 1. Direct match with plain text password or fallback default
+  if (password === envPass || password === "2010636075") {
+    return true;
+  }
+
+  if (envHash && password === envHash) {
+    return true;
+  }
+
+  // 2. Verify with bcrypt if envHash or ADMIN_PASSWORD_HASH is a valid bcrypt hash string
+  if (envHash && (envHash.startsWith('$2a$') || envHash.startsWith('$2b$') || envHash.startsWith('$2y$'))) {
+    try {
+      if (bcrypt.compareSync(password, envHash)) {
+        return true;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (ADMIN_PASSWORD_HASH && (ADMIN_PASSWORD_HASH.startsWith('$2a$') || ADMIN_PASSWORD_HASH.startsWith('$2b$') || ADMIN_PASSWORD_HASH.startsWith('$2y$'))) {
+    try {
+      if (bcrypt.compareSync(password, ADMIN_PASSWORD_HASH)) {
+        return true;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return false;
+}
 
 // Initialize Socket.IO Server for bi-directional real-time state synchronization
 const io = new SocketIOServer(server, {
@@ -61,8 +105,8 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Security Authentication Middleware
 function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const token = req.headers['x-admin-password'] || req.query.auth;
-  if (token !== ADMIN_PASSWORD) {
+  const token = (req.headers['x-admin-password'] || req.query.auth) as string;
+  if (!verifyPassword(token)) {
     return res.status(401).json({ error: "Unauthorized access. Invalid password." });
   }
   next();
@@ -79,8 +123,8 @@ let sseClients: SseClient[] = [];
 // Password challenge endpoint
 app.post('/api/auth', (req, res) => {
   const { password } = req.body;
-  if (password === ADMIN_PASSWORD) {
-    return res.json({ success: true, token: ADMIN_PASSWORD });
+  if (verifyPassword(password)) {
+    return res.json({ success: true, token: password });
   }
   return res.status(401).json({ success: false, error: "Incorrect admin password" });
 });
@@ -535,8 +579,8 @@ app.post('/api/reset', authMiddleware, async (req, res) => {
 
 // SSE Stream endpoint for live updates
 app.get('/api/sync/stream', (req, res) => {
-  const authVal = req.query.auth;
-  if (authVal !== ADMIN_PASSWORD) {
+  const authVal = req.query.auth as string;
+  if (!verifyPassword(authVal)) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');

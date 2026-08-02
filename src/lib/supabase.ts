@@ -25,17 +25,33 @@ import {
 } from '../types';
 
 // Read Environment Variables
+const getEnvVar = (key: string): string | undefined => {
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
+    return process.env[key];
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+    return import.meta.env[key];
+  }
+  return undefined;
+};
+
 const SUPABASE_URL = 
-  import.meta.env?.VITE_SUPABASE_URL || 
-  process.env.VITE_SUPABASE_URL || 
-  'https://placeholder.supabase.co';
+  getEnvVar('SUPABASE_URL') || 
+  getEnvVar('VITE_SUPABASE_URL') || 
+  'https://hfwaxhcphvzoaygalljd.supabase.co';
 
 const SUPABASE_ANON_KEY = 
-  import.meta.env?.VITE_SUPABASE_ANON_KEY || 
-  process.env.VITE_SUPABASE_ANON_KEY || 
-  'placeholder-anon-key';
+  getEnvVar('VITE_SUPABASE_ANON_KEY') || 
+  getEnvVar('SUPABASE_ANON_KEY') || 
+  '';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_SERVICE_ROLE_KEY = 
+  getEnvVar('SUPABASE_SERVICE_ROLE_KEY') || 
+  getEnvVar('VITE_SUPABASE_SERVICE_ROLE_KEY');
+
+const supabaseKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+export const supabase = createClient(SUPABASE_URL, supabaseKey);
 
 // ==========================================
 // DATA MAPPERS (CamelCase <-> SnakeCase)
