@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Settings, Save, RefreshCw, Download, Upload, Trash2, ShieldAlert } from 'lucide-react';
+import { Settings, Save, RefreshCw, Download, Upload, Trash2, ShieldAlert, GraduationCap } from 'lucide-react';
 import { StorageManager } from '../lib/storage';
 
 export default function SettingsView() {
@@ -96,12 +96,26 @@ export default function SettingsView() {
 
             <div className="flex flex-col space-y-1">
               <label className="text-slate-400 font-semibold">Institute Logo Avatar URL</label>
-              <input
-                type="text"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                className="bg-slate-950 border border-slate-800 focus:border-emerald-500/40 rounded px-3 py-2 outline-none text-slate-100"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 focus:border-emerald-500/40 rounded px-3 py-2 outline-none text-slate-100 flex-1"
+                />
+                <div className="w-10 h-10 rounded-lg border border-slate-700 bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center">
+                  {(logoUrl && logoUrl !== '/app_logo.jpg' && !logoUrl.includes('unsplash.com')) ? (
+                    <img 
+                      src={logoUrl} 
+                      alt="Logo Preview" 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <GraduationCap className="w-5 h-5 text-emerald-400" />
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

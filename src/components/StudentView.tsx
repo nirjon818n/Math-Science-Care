@@ -22,7 +22,11 @@ import {
   Check,
   Edit2,
   Calendar,
-  ClipboardList
+  ClipboardList,
+  Lock,
+  Unlock,
+  Coins,
+  DollarSign
 } from 'lucide-react';
 
 type ColKey = keyof Student;
@@ -48,7 +52,7 @@ const formatAdmissionDate = (dateStr: any) => {
     hour = hour % 12;
     hour = hour ? hour : 12;
     const formattedHour = String(hour).padStart(2, '0');
-    return `${day}-${month}-${year} ${formattedHour}:${min} ${ampm}`;
+    return `${day}/${month}/${year} ${formattedHour}:${min} ${ampm}`;
   }
   return str;
 };
@@ -62,6 +66,13 @@ export default function StudentView() {
     duplicateStudent,
     bulkDeleteStudents,
     attendance,
+    feePayments,
+    updateFeePayments,
+    logAction,
+    showToast,
+    adminPassword,
+    addSmsLog,
+    settings,
   } = useApp();
 
   // Columns Configuration
@@ -115,7 +126,7 @@ export default function StudentView() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
-  const [studentReportTab, setStudentReportTab] = useState<'summary' | 'details'>('summary');
+  const [studentReportTab, setStudentReportTab] = useState<'summary' | 'details' | 'finance'>('summary');
 
   const handleDeleteAllStudents = () => {
     const allIds = students.map(s => s.id);
@@ -135,10 +146,10 @@ export default function StudentView() {
     roll: undefined as any,
     name: '',
     nameBangla: '',
-    classLevel: 'Class 4',
-    groupName: 'General',
-    batch: 'Morning Batch',
-    batchTime: '07:00 AM',
+    classLevel: '',
+    groupName: '',
+    batch: 'Regular Batch',
+    batchTime: '',
     school: '',
     schoolRoll: '',
     parentName: '',
@@ -147,7 +158,7 @@ export default function StudentView() {
     fathersPhone: '',
     mothersName: '',
     mothersPhone: '',
-    monthlyFee: 5000,
+    monthlyFee: undefined as any,
     admissionDate: getLocalDatetimeString(),
     status: StudentStatus.Active,
     notes: '',
@@ -160,10 +171,10 @@ export default function StudentView() {
       roll: undefined as any,
       name: '',
       nameBangla: '',
-      classLevel: 'Class 4',
-      groupName: 'General',
-      batch: 'Morning Batch',
-      batchTime: '07:00 AM',
+      classLevel: '',
+      groupName: '',
+      batch: 'Regular Batch',
+      batchTime: '',
       school: '',
       schoolRoll: '',
       parentName: '',
@@ -172,7 +183,7 @@ export default function StudentView() {
       fathersPhone: '',
       mothersName: '',
       mothersPhone: '',
-      monthlyFee: 5000,
+      monthlyFee: undefined as any,
       admissionDate: getLocalDatetimeString(),
       status: StudentStatus.Active,
       notes: '',
@@ -407,6 +418,118 @@ export default function StudentView() {
     reader.readAsText(file);
   };
 
+  const sendWelcomeSMS = async (student: Student) => {
+    try {
+      const student_name = student.nameBangla 
+        ? `${student.name} (${student.nameBangla})` 
+        : student.name;
+      const class_level = student.classLevel || 'N/A';
+      const batch_time = student.batchTime || 'N/A';
+      const monthly_fee = student.monthlyFee ? `৳${student.monthlyFee.toLocaleString()}` : 'N/A';
+
+      const messageText = `প্রিয় অভিভাবক,\nআসসালামু আলাইকুম।\n\"Math & Science Care\"-এর প্রতি আস্থা রাখার জন্য আন্তরিক ধন্যবাদ।\nআমরা আনন্দের সঙ্গে জানাচ্ছি যে, \"শিক্ষার্থী ${student_name}\"-এর ভর্তি সফলভাবে সম্পন্ন হয়েছে।\nভর্তির তথ্য:\n• শিক্ষার্থী: \"${student_name}\"\n• শ্রেণি: ${class_level}\n• ব্যাচ: ${batch_time}\n• মাসিক বেতন: ${monthly_fee}\nনিয়মিত ক্লাস, পরীক্ষা ও অগ্রগতির মাধ্যমে শিক্ষার্থীর সর্বোচ্চ উন্নয়নে আমরা প্রতিশ্রুতিবদ্ধ।\nযেকোনো প্রয়োজনে যোগাযোগ করুন:\n📞 01984428632\nশিক্ষার্থীর সফলতা ও উজ্জ্বল ভবিষ্যৎ কামনা করি।\nধন্যবাদান্তে,\nMath & Science Care`;
+
+      // Clean and standardize phone numbers to 11 digits starting with '01'
+      const cleanPhoneNumber = (phone: string): string => {
+        let cleaned = (phone || '').replace(/[^\d]/g, '');
+        if (cleaned.length === 13 && cleaned.startsWith('8801')) {
+          cleaned = cleaned.substring(2);
+        }
+        if (cleaned.length === 10 && cleaned.startsWith('1')) {
+          cleaned = '0' + cleaned;
+        }
+        return cleaned;
+      };
+
+      const fatherPhone = student.fathersPhone || student.parentPhone || '';
+      const motherPhone = student.mothersPhone || '';
+
+      const fatherCleaned = cleanPhoneNumber(fatherPhone);
+      const motherCleaned = cleanPhoneNumber(motherPhone);
+
+      const rawPhones = [fatherPhone, motherPhone];
+      const validPhones = Array.from(new Set(rawPhones.map(cleanPhoneNumber).filter(p => p.length === 11 && p.startsWith('01'))));
+
+      if (validPhones.length === 0) {
+        console.log('[StudentView] No valid phone numbers found to send welcome SMS.');
+        return;
+      }
+
+      // Trigger separate independent fetch requests to guarantee delivery to both parents
+      for (const phone of validPhones) {
+        const recipientRole = phone === fatherCleaned ? 'Father' : 'Mother';
+        let status: 'Success' | 'Failed' = 'Failed';
+        let responseRaw = '';
+
+        if (settings.smsServiceEnabled === false) {
+          console.log("SMS service is disabled in settings. Skipping admission SMS dispatch.");
+          addSmsLog({
+            student_name: student.name,
+            recipient_role: recipientRole,
+            phone_number: phone,
+            message_type: 'Admission',
+            message_content: messageText,
+            status: 'Failed',
+            response_raw: 'SMS service is disabled by administrator in settings',
+          });
+          continue;
+        }
+
+        try {
+          console.log("Sending SMS to:", phone);
+          const payload = new URLSearchParams({
+            apikey: "510b17b71592af35dac9cba3d019dc30",
+            sender: "8809617639923",
+            msisdn: phone,
+            smstext: messageText,
+            smsformat: "8"
+          });
+
+          const response = await fetch('/api/send-sms', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-Admin-Password': adminPassword || '2010636075',
+            },
+            body: payload.toString(),
+          });
+
+          responseRaw = `HTTP ${response.status}`;
+          if (response.ok) {
+            const data = await response.json();
+            responseRaw = JSON.stringify(data);
+            if (data.success) {
+              status = 'Success';
+              showToast('🚀 নতুন শিক্ষার্থীর অভিভাবকদের নিকট ভর্তি নিশ্চিতকরণের অটোমেটিক SMS পাঠানো হয়েছে!');
+              console.log(`✓ Welcome SMS successfully sent to ${phone}`, data);
+            } else {
+              console.error(`✗ Welcome SMS failed for number ${phone}:`, data.error || data);
+            }
+          } else {
+            const errText = await response.text();
+            responseRaw = errText;
+            console.error(`✗ Welcome SMS network response failed for number ${phone}:`, errText);
+          }
+        } catch (err) {
+          responseRaw = err instanceof Error ? err.message : String(err);
+          console.error(`✗ Failed to send welcome SMS to ${phone}:`, err);
+        } finally {
+          addSmsLog({
+            student_name: student.name,
+            recipient_role: recipientRole,
+            phone_number: phone,
+            message_type: 'Admission',
+            message_content: messageText,
+            status,
+            response_raw: responseRaw,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[StudentView] Error inside sendWelcomeSMS:', err);
+    }
+  };
+
   const handleAddStudentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -435,7 +558,9 @@ export default function StudentView() {
       } as Student);
       setEditingStudentId(null);
     } else {
-      addStudent(studentToSave);
+      const savedStudent = addStudent(studentToSave);
+      // Dispatch automated welcome SMS in the background
+      sendWelcomeSMS(savedStudent);
     }
 
     setShowAddModal(false);
@@ -443,10 +568,10 @@ export default function StudentView() {
       roll: undefined as any,
       name: '',
       nameBangla: '',
-      classLevel: 'Class 4',
-      groupName: 'General',
-      batch: 'Morning Batch',
-      batchTime: '07:00 AM',
+      classLevel: '',
+      groupName: '',
+      batch: 'Regular Batch',
+      batchTime: '',
       school: '',
       schoolRoll: '',
       parentName: '',
@@ -455,7 +580,7 @@ export default function StudentView() {
       fathersPhone: '',
       mothersName: '',
       mothersPhone: '',
-      monthlyFee: 5000,
+      monthlyFee: undefined as any,
       admissionDate: getLocalDatetimeString(),
       status: StudentStatus.Active,
       notes: '',
@@ -782,7 +907,7 @@ export default function StudentView() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Name (English) <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">Name (English) <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -794,7 +919,7 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Name (Bengali) <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">Name (Bengali) <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -806,13 +931,15 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Class Level <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">Class Level <span className="text-rose-500">*</span></label>
                     <select
                       required
                       value={newStudentForm.classLevel}
                       onChange={(e) => setNewStudentForm({ ...newStudentForm, classLevel: e.target.value })}
                       className="bg-slate-950 border border-slate-800 focus:border-emerald-500/40 rounded px-3 py-2 outline-none text-slate-200"
                     >
+                      <option value="" disabled hidden>-- শ্রেণি নির্বাচন করুন --</option>
+                      <option value="" disabled>-- শ্রেণি নির্বাচন করুন --</option>
                       <option value="Class 4">Class 4</option>
                       <option value="Class 5">Class 5</option>
                       <option value="Class 6">Class 6</option>
@@ -822,7 +949,7 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Tuition Roll <span className="text-slate-500">(Optional)</span></label>
+                    <label className="text-emerald-400 font-medium">Tuition Roll <span className="text-slate-500">(Optional)</span></label>
                     <input
                       type="number"
                       placeholder="Auto-assigned if blank"
@@ -839,25 +966,15 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Batch Nickname <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Morning Batch"
-                      value={newStudentForm.batch}
-                      onChange={(e) => setNewStudentForm({ ...newStudentForm, batch: e.target.value })}
-                      className="bg-slate-950 border border-slate-800 focus:border-emerald-500/40 rounded px-3 py-2 outline-none text-slate-200"
-                    />
-                  </div>
-
-                  <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Batch Time <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">Batch Time <span className="text-rose-500">*</span></label>
                     <select
                       required
                       value={newStudentForm.batchTime}
                       onChange={(e) => setNewStudentForm({ ...newStudentForm, batchTime: e.target.value })}
                       className="bg-slate-950 border border-slate-800 focus:border-emerald-500/40 rounded px-3 py-2 outline-none text-slate-200"
                     >
+                      <option value="" disabled hidden>-- ব্যাচের সময় নির্বাচন করুন --</option>
+                      <option value="" disabled>-- ব্যাচের সময় নির্বাচন করুন --</option>
                       <option value="07:00 AM">07:00 AM</option>
                       <option value="09:00 AM">09:00 AM</option>
                       <option value="02:00 PM">02:00 PM</option>
@@ -868,13 +985,14 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Monthly Fee (৳) <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">Monthly Fee (৳) <span className="text-rose-500">*</span></label>
                     <input
                       type="number"
                       required
                       min="0"
-                      value={newStudentForm.monthlyFee}
-                      onChange={(e) => setNewStudentForm({ ...newStudentForm, monthlyFee: parseFloat(e.target.value) || 0 })}
+                      placeholder="যেমন: 2500"
+                      value={newStudentForm.monthlyFee !== undefined && !isNaN(newStudentForm.monthlyFee) ? newStudentForm.monthlyFee : ''}
+                      onChange={(e) => setNewStudentForm({ ...newStudentForm, monthlyFee: e.target.value === '' ? undefined as any : parseFloat(e.target.value) })}
                       className="bg-slate-950 border border-slate-800 focus:border-emerald-500/40 rounded px-3 py-2 outline-none text-slate-200"
                     />
                   </div>
@@ -888,7 +1006,7 @@ export default function StudentView() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex flex-col space-y-1 md:col-span-1">
-                    <label className="text-slate-300 font-medium">School / College Name <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">School / College Name <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -900,7 +1018,7 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">School Group <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">School Group <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -912,7 +1030,7 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">School Roll Number <span className="text-rose-500">*</span></label>
+                    <label className="text-emerald-400 font-medium">School Roll Number <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -934,7 +1052,7 @@ export default function StudentView() {
                   <div className="space-y-3 p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Father's Details</p>
                     <div className="flex flex-col space-y-1">
-                      <label className="text-slate-300 font-medium">Father's Full Name <span className="text-rose-500">*</span></label>
+                      <label className="text-emerald-400 font-medium">Father's Full Name <span className="text-rose-500">*</span></label>
                       <input
                         type="text"
                         required
@@ -945,7 +1063,7 @@ export default function StudentView() {
                       />
                     </div>
                     <div className="flex flex-col space-y-1">
-                      <label className="text-slate-300 font-medium">Father's Phone Number <span className="text-rose-500">*</span></label>
+                      <label className="text-emerald-400 font-medium">Father's Phone Number <span className="text-rose-500">*</span></label>
                       <input
                         type="text"
                         required
@@ -960,7 +1078,7 @@ export default function StudentView() {
                   <div className="space-y-3 p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Mother's Details</p>
                     <div className="flex flex-col space-y-1">
-                      <label className="text-slate-300 font-medium">Mother's Full Name <span className="text-rose-500">*</span></label>
+                      <label className="text-emerald-400 font-medium">Mother's Full Name <span className="text-rose-500">*</span></label>
                       <input
                         type="text"
                         required
@@ -971,7 +1089,7 @@ export default function StudentView() {
                       />
                     </div>
                     <div className="flex flex-col space-y-1">
-                      <label className="text-slate-300 font-medium">Mother's Phone Number <span className="text-rose-500">*</span></label>
+                      <label className="text-emerald-400 font-medium">Mother's Phone Number <span className="text-rose-500">*</span></label>
                       <input
                         type="text"
                         required
@@ -992,7 +1110,12 @@ export default function StudentView() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Admission Date & Time <span className="text-rose-500">*</span></label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-emerald-400 font-medium">Admission Date & Time <span className="text-rose-500">*</span></label>
+                      <span className="text-emerald-400 font-mono text-[10px] font-bold">
+                        {formatAdmissionDate(newStudentForm.admissionDate)}
+                      </span>
+                    </div>
                     <input
                       type="datetime-local"
                       required
@@ -1003,7 +1126,7 @@ export default function StudentView() {
                   </div>
 
                   <div className="flex flex-col space-y-1">
-                    <label className="text-slate-300 font-medium">Administrative Notes</label>
+                    <label className="text-emerald-400 font-medium">Administrative Notes</label>
                     <textarea
                       placeholder="Add tuition rules, special guidance or notes..."
                       value={newStudentForm.notes}
@@ -1243,11 +1366,22 @@ export default function StudentView() {
                       >
                         Detailed Log (তারিখ অনুযায়ী হাজিরা)
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setStudentReportTab('finance')}
+                        className={`text-xs font-bold pb-1.5 border-b-2 transition-all cursor-pointer ${
+                          studentReportTab === 'finance'
+                            ? 'border-emerald-500 text-emerald-400 font-extrabold'
+                            : 'border-transparent text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Finance (বেতন ট্র্যাকার)
+                      </button>
                     </div>
                     <span className="text-[10px] font-mono text-emerald-400">Live Synced</span>
                   </div>
 
-                  {studentReportTab === 'summary' ? (
+                  {studentReportTab === 'summary' && (
                     months.length === 0 ? (
                       <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-2xl p-8 text-center bg-slate-950/10">
                         <p className="text-slate-400 font-medium text-xs">No Attendance Records Logged Yet</p>
@@ -1313,7 +1447,9 @@ export default function StudentView() {
                         })}
                       </div>
                     )
-                  ) : (() => {
+                  )}
+
+                  {studentReportTab === 'details' && (() => {
                     const sortedRecords = attendance
                       .filter((a) => a.studentId === viewingStudent.id)
                       .sort((a, b) => b.date.localeCompare(a.date));
@@ -1384,6 +1520,118 @@ export default function StudentView() {
                               </div>
                             );
                           })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {studentReportTab === 'finance' && (() => {
+                    const studentPayments = feePayments.filter(p => p.studentId === viewingStudent.id);
+
+                    const getMonthNameBangla = (monthStr: string) => {
+                      const [year, monthNum] = monthStr.split('-');
+                      const months = [
+                        'January (জানুয়ারি)', 'February (ফেব্রুয়ারি)', 'March (মার্চ)', 'April (এপ্রিল)', 'May (মে)', 'June (জুন)',
+                        'July (জুলাই)', 'August (আগস্ট)', 'September (সেপ্টেম্বর)', 'October (অক্টোবর)', 'November (নভেম্বর)', 'December (ডিসেম্বর)'
+                      ];
+                      return `${months[parseInt(monthNum, 10) - 1] || 'Unknown'} ${year}`;
+                    };
+
+                    return (
+                      <div className="space-y-5 flex-1 flex flex-col min-h-0">
+                        {/* Information Banner */}
+                        <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-start gap-2.5">
+                          <Lock className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-bold text-slate-200">View-Only Student Ledger (শুধুমাত্র দেখার জন্য)</p>
+                            <p className="text-[10px] text-slate-400 leading-normal">
+                              বেতন পরিশোধের তথ্য যুক্ত বা পরিবর্তন করতে অনুগ্রহ করে বাম পাশের মেনু থেকে <span className="text-emerald-400 font-bold">Tuition Fee Tracker</span> এ প্রবেশ করুন। সুরক্ষার স্বার্থে এই প্রোফাইল ভিউটি রিড-অনলি করা হয়েছে।
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Status Overview Card */}
+                        <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-sans">Monthly Tuition Fee</p>
+                            <h4 className="text-2xl font-extrabold text-emerald-400 font-mono mt-0.5">
+                              ৳{(viewingStudent.monthlyFee || 0).toLocaleString()}
+                            </h4>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 px-4 text-center">
+                              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Total Months Paid</p>
+                              <p className="text-sm font-bold font-mono text-emerald-400">
+                                {studentPayments.filter(p => p.status === 'Paid').length}
+                              </p>
+                            </div>
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 px-4 text-center">
+                              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Total Collected</p>
+                              <p className="text-sm font-bold font-mono text-slate-200">
+                                ৳{studentPayments
+                                  .filter(p => p.status === 'Paid')
+                                  .reduce((sum, p) => sum + (p.paidAmount || 0), 0)
+                                  .toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Payment History List */}
+                        <div className="flex-1 flex flex-col min-h-0">
+                          <h5 className="text-xs font-bold text-slate-300 mb-2 pb-1 border-b border-slate-800 flex items-center gap-1.5">
+                            <Coins className="w-4 h-4 text-emerald-400" />
+                            Payment History (বেতন পরিশোধের ইতিহাস)
+                          </h5>
+                          {studentPayments.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-2xl p-6 text-center bg-slate-950/10">
+                              <p className="text-slate-500 text-[10px]">No payment history logged for this student yet.</p>
+                            </div>
+                          ) : (
+                            <div className="overflow-y-auto max-h-[35vh] space-y-2 pr-1">
+                              {studentPayments
+                                .sort((a, b) => b.month.localeCompare(a.month))
+                                .map((payment) => {
+                                  const isLocked = payment.status === 'Paid';
+                                  return (
+                                    <div
+                                      key={payment.id}
+                                      className={`p-3 bg-slate-950/30 border rounded-xl flex items-center justify-between transition-all ${
+                                        isLocked ? 'border-emerald-500/20' : 'border-slate-800/60'
+                                      }`}
+                                    >
+                                      <div className="space-y-1">
+                                        <p className="text-xs font-bold text-slate-200">
+                                          {getMonthNameBangla(payment.month)}
+                                        </p>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                          <span className="font-mono">Base Fee: ৳{payment.amount.toLocaleString()}</span>
+                                          <span>•</span>
+                                          <span className="font-mono text-slate-300">Received: ৳{payment.paidAmount.toLocaleString()}</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-3">
+                                        {payment.paymentDate && (
+                                          <div className="text-right">
+                                            <p className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Paid Date</p>
+                                            <p className="text-[10px] text-slate-300 font-mono font-bold">{payment.paymentDate}</p>
+                                          </div>
+                                        )}
+                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ${
+                                          isLocked 
+                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        }`}>
+                                          {isLocked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
+                                          {payment.status}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1479,6 +1727,7 @@ export default function StudentView() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

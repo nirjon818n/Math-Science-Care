@@ -17,7 +17,10 @@ import {
   ActivityType,
   AppSettings,
   Exam,
-  ExamResult
+  ExamResult,
+  UploadedFile,
+  FeePayment,
+  SmsLog
 } from '../types';
 
 const KEYS = {
@@ -31,6 +34,9 @@ const KEYS = {
   SETTINGS: 'msc_settings',
   EXAMS: 'msc_exams',
   EXAM_RESULTS: 'msc_exam_results',
+  UPLOADED_FILES: 'msc_uploaded_files',
+  FEE_PAYMENTS: 'msc_fee_payments',
+  SMS_LOGS: 'msc_sms_logs',
 };
 
 // Initial Seed Data
@@ -225,11 +231,12 @@ const INITIAL_ACTIVITIES: ActivityLog[] = [
 
 const INITIAL_SETTINGS: AppSettings = {
   instituteName: 'Math & Science Care',
-  logoUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&q=80&w=250',
+  logoUrl: '',
   themeAccent: 'emerald',
   darkMode: true,
   customFooterText: 'Cared by: Nion Hassan Nirjon',
   autoSaveInterval: 10,
+  smsServiceEnabled: true,
 };
 
 // Storage Helpers
@@ -286,7 +293,9 @@ export const StorageManager = {
     StorageManager.saveActivities([newLog, ...logs]);
   },
 
-  getSettings: (): AppSettings => loadData<AppSettings>(KEYS.SETTINGS, INITIAL_SETTINGS),
+  getSettings: (): AppSettings => {
+    return loadData<AppSettings>(KEYS.SETTINGS, INITIAL_SETTINGS);
+  },
   saveSettings: (data: AppSettings) => saveData<AppSettings>(KEYS.SETTINGS, data),
 
   getExams: (): Exam[] => loadData<Exam[]>(KEYS.EXAMS, []),
@@ -294,6 +303,15 @@ export const StorageManager = {
 
   getExamResults: (): ExamResult[] => loadData<ExamResult[]>(KEYS.EXAM_RESULTS, []),
   saveExamResults: (data: ExamResult[]) => saveData<ExamResult[]>(KEYS.EXAM_RESULTS, data),
+
+  getUploadedFiles: (): UploadedFile[] => loadData<UploadedFile[]>(KEYS.UPLOADED_FILES, []),
+  saveUploadedFiles: (data: UploadedFile[]) => saveData<UploadedFile[]>(KEYS.UPLOADED_FILES, data),
+
+  getFeePayments: (): FeePayment[] => loadData<FeePayment[]>(KEYS.FEE_PAYMENTS, []),
+  saveFeePayments: (data: FeePayment[]) => saveData<FeePayment[]>(KEYS.FEE_PAYMENTS, data),
+
+  getSmsLogs: (): SmsLog[] => loadData<SmsLog[]>(KEYS.SMS_LOGS, []),
+  saveSmsLogs: (data: SmsLog[]) => saveData<SmsLog[]>(KEYS.SMS_LOGS, data),
 
   resetDatabase: () => {
     localStorage.removeItem(KEYS.STUDENTS);
@@ -306,6 +324,9 @@ export const StorageManager = {
     localStorage.removeItem(KEYS.SETTINGS);
     localStorage.removeItem(KEYS.EXAMS);
     localStorage.removeItem(KEYS.EXAM_RESULTS);
+    localStorage.removeItem(KEYS.UPLOADED_FILES);
+    localStorage.removeItem(KEYS.FEE_PAYMENTS);
+    localStorage.removeItem(KEYS.SMS_LOGS);
     // Reload window or return fresh seed
     window.location.reload();
   },
@@ -322,6 +343,9 @@ export const StorageManager = {
       settings: StorageManager.getSettings(),
       exams: StorageManager.getExams(),
       examResults: StorageManager.getExamResults(),
+      uploadedFiles: StorageManager.getUploadedFiles(),
+      feePayments: StorageManager.getFeePayments(),
+      sms_logs: StorageManager.getSmsLogs(),
     };
     return JSON.stringify(backup, null, 2);
   },
@@ -339,6 +363,9 @@ export const StorageManager = {
       if (backup.settings) StorageManager.saveSettings(backup.settings);
       if (backup.exams) StorageManager.saveExams(backup.exams);
       if (backup.examResults) StorageManager.saveExamResults(backup.examResults);
+      if (backup.uploadedFiles) StorageManager.saveUploadedFiles(backup.uploadedFiles);
+      if (backup.feePayments) StorageManager.saveFeePayments(backup.feePayments);
+      if (backup.sms_logs) StorageManager.saveSmsLogs(backup.sms_logs);
       return true;
     } catch (e) {
       console.error('Error importing database backup', e);

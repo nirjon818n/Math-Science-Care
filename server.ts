@@ -6,14 +6,20 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import http from "http";
 import { createServer as createViteServer } from "vite";
+import dotenv from "dotenv";
+
+dotenv.config({ override: true });
 
 const app = express();
+const server = http.createServer(app);
 const PORT = 3000;
 const ADMIN_PASSWORD = "2010636075";
 const DB_FILE = path.join(process.cwd(), 'database.json');
 
 app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initial Seed Data (matching types.ts structure)
 const INITIAL_DB = {
@@ -201,15 +207,26 @@ const INITIAL_DB = {
   ],
   settings: {
     instituteName: 'Math & Science Care',
-    logoUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&q=80&w=250',
+    logoUrl: '/app_logo.jpg',
     themeAccent: 'emerald',
     darkMode: true,
     customFooterText: 'Cared by: Nion Hassan Nirjon',
-    autoSaveInterval: 10
+    autoSaveInterval: 10,
+    smsServiceEnabled: true
   },
   exams: [],
-  examResults: []
+  examResults: [],
+  uploadedFiles: [],
+  feePayments: [],
+  sms_logs: []
 };
+
+// Ensure uploads folder exists
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Database CRUD Helper Functions
 function loadDb(): any {
@@ -223,7 +240,17 @@ function loadDb(): any {
   }
   try {
     const data = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed.uploadedFiles) {
+      parsed.uploadedFiles = [];
+    }
+    if (!parsed.feePayments) {
+      parsed.feePayments = [];
+    }
+    if (!parsed.sms_logs) {
+      parsed.sms_logs = [];
+    }
+    return parsed;
   } catch (e) {
     console.error("Error parsing database.json, using initial state:", e);
     return INITIAL_DB;
@@ -264,6 +291,242 @@ app.post('/api/auth', (req, res) => {
   return res.status(401).json({ success: false, error: "Incorrect admin password" });
 });
 
+// Proxy route for automated SMS sending to sms.automas.com.bd Cloud REST API (v3)
+app.post('/api/send-sms', authMiddleware, async (req, res) => {
+  const db = loadDb();
+  if (db.settings && db.settings.smsServiceEnabled === false) {
+    return res.json({ success: false, error: "SMS service is currently disabled by the administrator." });
+  }
+
+  const rawNumber = req.body.number || req.body.msisdn;
+  const message = req.body.message || req.body.smstext;
+
+  if (!rawNumber || !message) {
+    return res.status(400).json({ error: "Missing recipient number or message body" });
+  }
+
+  // Sanitize phone number (remove non-digits like '+', spaces, or dashes)
+  let cleanNumber = String(rawNumber).trim().replace(/\D/g, '');
+  if (cleanNumber.length === 11 && cleanNumber.startsWith('01')) {
+    cleanNumber = '88' + cleanNumber; // Ensure 8801... standard BD format for gateway
+  }
+
+  const apiKey = req.body.apikey || (process.env.AUTOMAS_SMS_API_KEY && process.env.AUTOMAS_SMS_API_KEY !== "056262a0eba72b8d9f7b14482f38a6d8" ? process.env.AUTOMAS_SMS_API_KEY : "510b17b71592af35dac9cba3d019dc30");
+  const senderId = req.body.sender || process.env.AUTOMAS_SMS_SENDER_ID || "8809617639923";
+  const smsFormat = req.body.smsformat || "8";
+
+  console.log(`[sms.automas.com.bd API v3] Initiating dispatch to number: ${cleanNumber} (raw: ${rawNumber})`);
+
+  try {
+    const payload = new URLSearchParams({
+      apikey: apiKey,
+      sender: senderId,
+      msisdn: cleanNumber,
+      smstext: message,
+      smsformat: String(smsFormat)
+    });
+
+    const response = await fetch('https://api.automas.com.bd/smsapiv3', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: payload.toString(),
+    });
+
+    const responseText = await response.text();
+    let responseJson: any = {};
+    try {
+      responseJson = JSON.parse(responseText);
+    } catch {}
+
+    // Parse Automas API response structure & status codes strictly
+    let isSuccess = false;
+    let errorMessage = "";
+
+    if (response.ok) {
+      let items: any[] = [];
+      if (Array.isArray(responseJson)) {
+        items = responseJson;
+      } else if (responseJson && Array.isArray(responseJson.response)) {
+        items = responseJson.response;
+      } else if (responseJson && typeof responseJson === 'object' && responseJson.status !== undefined) {
+        items = [responseJson];
+      }
+
+      if (items.length > 0) {
+        const firstItem = items[0];
+        const statusCode = Number(firstItem.status);
+        if (firstItem.status !== undefined && statusCode === 0) {
+          isSuccess = true;
+        } else {
+          isSuccess = false;
+          const statusMap: Record<number, string> = {
+            100: "Invalid API Request or Parameters",
+            101: "Invalid API Key or Account Inactive",
+            102: "Invalid Sender ID (ভুল সেন্ডার আইডি)",
+            103: "Insufficient SMS Balance (অপর্যাপ্ত এসএমএস ব্যালেন্স)",
+            104: "Invalid SMS Format or Message Text",
+            105: "Invalid Mobile Number (ভুল মোবাইল নম্বর)",
+            106: "Automas Authentication Failed / Invalid API Key (এপিআই কি সঠিক নয়)",
+            107: "IP Restricted by Automas Gateway",
+            108: "Content Blocked by Gateway Spam Filter"
+          };
+          errorMessage = statusMap[statusCode] || `Automas Gateway return status code ${statusCode}`;
+        }
+      } else {
+        const lower = responseText.toLowerCase();
+        if ((lower.includes('success') || lower.includes('sent')) && !lower.includes('error') && !lower.includes('fail') && !lower.includes('106')) {
+          isSuccess = true;
+        } else {
+          errorMessage = responseText || "Unsuccessful response from Automas SMS gateway";
+        }
+      }
+    } else {
+      errorMessage = `HTTP Error ${response.status}: ${responseText || 'Gateway Server error'}`;
+    }
+
+    if (isSuccess) {
+      console.log(`✓ sms.automas.com.bd v3 successfully sent message to ${cleanNumber}:`, responseText);
+      return res.json({ success: true, data: responseJson });
+    } else {
+      console.warn(`✗ sms.automas.com.bd v3 returned unsuccessful response for ${cleanNumber}:`, errorMessage, responseText);
+      return res.status(400).json({
+        success: false,
+        error: errorMessage,
+        data: responseJson
+      });
+    }
+  } catch (err: any) {
+    console.error(`✗ sms.automas.com.bd v3 dispatch system error for ${cleanNumber}:`, err.message || err);
+    return res.status(500).json({ success: false, error: err.message || String(err) });
+  }
+});
+
+// In-memory cache for the last successfully retrieved SMS balance
+let lastKnownSmsBalance: string = "0.00";
+
+async function updateSmsBalanceCache() {
+  try {
+    const apiKey = process.env.AUTOMAS_SMS_API_KEY || "510b17b71592af35dac9cba3d019dc30";
+    const res = await fetch(`https://api.automas.com.bd/getbalancev3?apikey=${apiKey}&_=${Date.now()}`);
+    if (res.ok) {
+      const text = await res.text();
+      let json: any = {};
+      try { json = JSON.parse(text); } catch { json = { response: text.trim() }; }
+      const val = json.balance !== undefined ? json.balance : (json.response !== undefined ? json.response : json.balance_amount);
+      if (val !== undefined && val !== null && !isNaN(parseFloat(String(val)))) {
+        lastKnownSmsBalance = parseFloat(String(val)).toFixed(2);
+        console.log(`[sms.automas.com.bd] Synchronized live SMS balance cache: ৳${lastKnownSmsBalance}`);
+      }
+    }
+  } catch (err: any) {
+    console.log("[sms.automas.com.bd] Initial balance sync skipped:", err.message || err);
+  }
+}
+updateSmsBalanceCache();
+
+// Proxy route for fetching current SMS balance from Automas API
+app.get('/api/sms-balance', authMiddleware, async (req, res) => {
+  const apiKey = req.query.apikey || process.env.AUTOMAS_SMS_API_KEY || "510b17b71592af35dac9cba3d019dc30";
+  try {
+    const response = await fetch(`https://api.automas.com.bd/getbalancev3?apikey=${apiKey}&_=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const responseText = await response.text();
+    let responseJson: any = {};
+    try {
+      responseJson = JSON.parse(responseText);
+    } catch {
+      // If response is raw number or not valid JSON, parse it as { response: text }
+      responseJson = { response: responseText.trim() };
+    }
+
+    // Attempt to extract balance to update our in-memory cache
+    let balanceVal = "";
+    if (responseJson.balance !== undefined) {
+      balanceVal = String(responseJson.balance);
+    } else if (responseJson.response !== undefined) {
+      balanceVal = String(responseJson.response);
+    } else if (responseJson.balance_amount !== undefined) {
+      balanceVal = String(responseJson.balance_amount);
+    } else {
+      const keys = Object.keys(responseJson);
+      const foundKey = keys.find(k => k.toLowerCase().includes('balance') || k.toLowerCase().includes('amount') || k.toLowerCase().includes('credit'));
+      if (foundKey && responseJson[foundKey] !== undefined) {
+        balanceVal = String(responseJson[foundKey]);
+      }
+    }
+
+    if (balanceVal && !isNaN(parseFloat(balanceVal))) {
+      lastKnownSmsBalance = parseFloat(balanceVal).toFixed(2);
+    }
+
+    return res.json({
+      success: true,
+      balance: balanceVal || lastKnownSmsBalance,
+      response: balanceVal || lastKnownSmsBalance,
+      raw: responseJson
+    });
+  } catch (err: any) {
+    console.log("Using cached SMS balance status:", err.message);
+    return res.json({ 
+      balance: lastKnownSmsBalance || "0.00", 
+      response: lastKnownSmsBalance || "0.00",
+      offline: true, 
+      error: err.message || "Failed to fetch live SMS balance" 
+    });
+  }
+});
+
+// POST endpoint to update the in-memory lastKnownSmsBalance cache from client side (GeoIP bypass)
+app.post('/api/sms-balance', authMiddleware, (req, res) => {
+  const { balance } = req.body;
+  if (balance && !isNaN(parseFloat(balance))) {
+    lastKnownSmsBalance = parseFloat(balance).toFixed(2);
+    console.log(`[sms.automas.com.bd] Synchronized last known live balance cache to: ${lastKnownSmsBalance}`);
+    return res.json({ success: true, balance: lastKnownSmsBalance });
+  }
+  return res.status(400).json({ error: "Invalid balance format" });
+});
+
+// File Upload Endpoint (Object Storage simulation)
+app.post('/api/upload', authMiddleware, (req, res) => {
+  const { fileName, fileData } = req.body;
+  if (!fileName || !fileData) {
+    return res.status(400).json({ error: "Missing file name or base64 file data" });
+  }
+
+  try {
+    let base64Data = fileData;
+    if (fileData.includes(';base64,')) {
+      base64Data = fileData.split(';base64,').pop();
+    }
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // Create unique file name
+    const ext = path.extname(fileName) || '.pdf';
+    const baseName = path.basename(fileName, ext).replace(/[^a-zA-Z0-9]/g, '_');
+    const uniqueFileName = `${baseName}_${Date.now()}${ext}`;
+    const filePath = path.join(UPLOADS_DIR, uniqueFileName);
+
+    fs.writeFileSync(filePath, buffer);
+
+    const fileUrl = `/uploads/${uniqueFileName}`;
+    return res.json({ success: true, url: fileUrl, name: fileName, size: buffer.length });
+  } catch (err: any) {
+    console.error("Upload error:", err);
+    return res.status(500).json({ error: err.message || "Failed to save file on server" });
+  }
+});
+
 // Full state read
 app.get('/api/data', authMiddleware, (req, res) => {
   const db = loadDb();
@@ -278,6 +541,44 @@ app.post('/api/data', authMiddleware, (req, res) => {
   }
 
   const db = loadDb();
+
+  if (key === 'students') {
+    const activeStudentIds = new Set(data.map((s: any) => s.id));
+    if (db.attendance) {
+      db.attendance = db.attendance.filter((a: any) => activeStudentIds.has(a.studentId));
+    }
+    if (db.feePayments) {
+      db.feePayments = db.feePayments.filter((p: any) => activeStudentIds.has(p.studentId));
+    }
+  }
+
+  if (key === 'feePayments') {
+    const existingPayments = db.feePayments || [];
+    for (const oldPay of existingPayments) {
+      if (oldPay.status === 'Paid') {
+        const incomingPay = data.find((p: any) => p.id === oldPay.id);
+        if (!incomingPay) {
+          const studentExists = db.students && db.students.some((s: any) => s.id === oldPay.studentId);
+          if (studentExists) {
+            return res.status(400).json({ error: "Constraint violation: Cannot delete a record that is already marked as Paid." });
+          }
+        }
+        if (incomingPay) {
+          if (
+            incomingPay.status !== 'Paid' ||
+            incomingPay.amount !== oldPay.amount ||
+            incomingPay.paidAmount !== oldPay.paidAmount ||
+            incomingPay.paymentDate !== oldPay.paymentDate ||
+            incomingPay.studentId !== oldPay.studentId ||
+            incomingPay.month !== oldPay.month
+          ) {
+            return res.status(400).json({ error: "Constraint violation: Once a fee is marked as Paid, it is locked and cannot be modified." });
+          }
+        }
+      }
+    }
+  }
+
   db[key] = data;
   saveDb(db);
 
@@ -359,7 +660,10 @@ async function start() {
   // Mount Vite middleware in development or serve static built files in production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : { server },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -371,7 +675,7 @@ async function start() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }

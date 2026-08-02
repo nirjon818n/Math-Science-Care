@@ -10,15 +10,17 @@ import DashboardView from './components/DashboardView';
 import StudentView from './components/StudentView';
 import AttendanceView from './components/AttendanceView';
 import QuestionBankView from './components/QuestionBankView';
-import SlideBuilderView from './components/SlideBuilderView';
+import DocumentManagerView from './components/DocumentManagerView';
 import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
 import ExamPortalView from './components/ExamPortalView';
+import TuitionFeeTrackerView from './components/TuitionFeeTrackerView';
+import SmsDashboard from './components/SmsDashboard';
 import GlobalSearch from './components/GlobalSearch';
 import DhakaClock from './components/DhakaClock';
 import AdminLogin from './components/AdminLogin';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Command, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { Sparkles, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 
 function AppContent() {
   const { currentSection, toasts, removeToast, adminPassword, setAdminPassword } = useApp();
@@ -41,8 +43,12 @@ function AppContent() {
         return <ExamPortalView />;
       case 'Question Bank':
         return <QuestionBankView />;
-      case 'Slide Builder':
-        return <SlideBuilderView />;
+      case 'Tuition Fee Tracker':
+        return <TuitionFeeTrackerView />;
+      case 'Document Manager':
+        return <DocumentManagerView />;
+      case 'SMS Dashboard':
+        return <SmsDashboard />;
       case 'Activity History':
         return <HistoryView />;
       case 'Settings':
@@ -80,12 +86,6 @@ function AppContent() {
 
         {/* Global Command-K Search Overlay */}
         <GlobalSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
-
-        {/* Float shortcuts guide on desktop */}
-        <div className="hidden lg:flex fixed bottom-4 right-4 items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 backdrop-blur border border-slate-800 rounded-xl text-[10px] text-slate-400 select-none font-mono z-20">
-          <Command className="w-3 h-3 text-slate-500" />
-          <span>Press ⌘K to index search</span>
-        </div>
       </div>
 
       {/* Dynamic Toast Messages Stack */}

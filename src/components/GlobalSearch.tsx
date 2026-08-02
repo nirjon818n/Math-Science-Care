@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Search, X, Users, FileText, FolderOpen, Presentation, Calendar, ArrowRight } from 'lucide-react';
+import { Search, X, Users, FileText, FolderOpen, Calendar, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface GlobalSearchProps {
@@ -14,7 +14,6 @@ interface GlobalSearchProps {
   onSelectStudent?: (id: string) => void;
   onSelectDocument?: (id: string) => void;
   onSelectQuestion?: (id: string) => void;
-  onSelectPresentation?: (id: string) => void;
 }
 
 export default function GlobalSearch({
@@ -23,9 +22,8 @@ export default function GlobalSearch({
   onSelectStudent,
   onSelectDocument,
   onSelectQuestion,
-  onSelectPresentation,
 }: GlobalSearchProps) {
-  const { students, documents, questions, presentations, setCurrentSection } = useApp();
+  const { students, documents, questions, setCurrentSection } = useApp();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,22 +79,10 @@ export default function GlobalSearch({
       )
     : [];
 
-  const matchedSlides = cleanQuery
-    ? presentations.filter(
-        (p) =>
-          p.title.toLowerCase().includes(cleanQuery) ||
-          p.slides.some(
-            (s) =>
-              s.title.toLowerCase().includes(cleanQuery) ||
-              s.notes.toLowerCase().includes(cleanQuery)
-          )
-      )
-    : [];
-
   const hasResults =
     matchedStudents.length > 0 ||
     matchedQuestions.length > 0 ||
-    matchedSlides.length > 0;
+    matchedDocs.length > 0;
 
   return (
     <AnimatePresence>
@@ -114,7 +100,7 @@ export default function GlobalSearch({
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search students, papers, docs, or slide decks... (ESC to close)"
+              placeholder="Search students, papers, or documents... (ESC to close)"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="w-full bg-transparent text-slate-100 outline-none placeholder-slate-500 text-sm py-1"
@@ -235,42 +221,6 @@ export default function GlobalSearch({
                               </p>
                               <p className="text-xs text-slate-400 truncate">
                                 {q.subject} • {q.chapter} • {q.classLevel}
-                              </p>
-                            </div>
-                          </div>
-                          <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 opacity-0 group-hover:opacity-100 transition shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Slides Matches */}
-                {matchedSlides.length > 0 && (
-                  <div>
-                    <h3 className="text-[11px] font-mono text-slate-500 uppercase tracking-wider px-2 mb-1">
-                      Slides ({matchedSlides.length})
-                    </h3>
-                    <div className="space-y-0.5">
-                      {matchedSlides.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => {
-                            setCurrentSection('Slide Builder');
-                            if (onSelectPresentation) onSelectPresentation(p.id);
-                            onClose();
-                          }}
-                          className="w-full text-left flex items-center justify-between px-2 py-2 hover:bg-slate-800/50 rounded-lg transition group"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md flex items-center justify-center shrink-0">
-                              <Presentation className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-slate-200 truncate group-hover:text-amber-400 transition">
-                                {p.title}
-                              </p>
-                              <p className="text-xs text-slate-400 truncate">
-                                {p.slides.length} slides • Edited {new Date(p.lastEdited).toLocaleDateString()}
                               </p>
                             </div>
                           </div>

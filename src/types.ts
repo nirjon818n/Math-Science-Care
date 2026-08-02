@@ -158,16 +158,20 @@ export interface AppSettings {
   darkMode: boolean;
   customFooterText: string;
   autoSaveInterval: number; // in seconds
+  smsServiceEnabled?: boolean;
 }
 
 export interface Exam {
   id: string;
   name: string;
-  type: 'Weekly' | 'Monthly';
+  type: 'Weekly' | 'Monthly' | '';
   date: string; // YYYY-MM-DD
   subject: string;
-  totalMarks: number;
+  totalMarks: number | '';
   classLevel: string; // e.g. "Class 8", "Class 10", "HSC 1st Year"
+  time?: string; // HH:MM or similar time representation
+  questionPaperName?: string;
+  questionPaperUrl?: string;
 }
 
 export interface ExamResult {
@@ -178,4 +182,40 @@ export interface ExamResult {
   isAbsent: boolean;
   remarks?: string;
 }
+
+export interface UploadedFile {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  type: string; // "pdf" | "docx" | "image" | "other"
+  uploadedAt: string;
+  linkedClass: string; // e.g. "Class 8", "Class 10", "HSC 1st Year", "All"
+  linkedGroup: string; // e.g. "Science", "Commerce", "General", "All"
+  description: string;
+}
+
+export interface FeePayment {
+  id: string;
+  studentId: string;
+  month: string; // e.g., "2026-07"
+  amount: number; // monthly fee set at the time of record
+  paidAmount: number; // actual amount received, customisable
+  status: 'Paid' | 'Unpaid';
+  paymentDate?: string; // YYYY-MM-DD
+}
+
+export interface SmsLog {
+  id: string;
+  student_name: string;
+  recipient_role: string;
+  phone_number: string;
+  message_type: string;
+  message_content: string;
+  status: 'Success' | 'Failed';
+  response_raw: string;
+  created_at: string;
+}
+
+
 

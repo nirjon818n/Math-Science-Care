@@ -17,6 +17,9 @@ import {
   StudentStatus,
   Exam,
   ExamResult,
+  UploadedFile,
+  FeePayment,
+  SmsLog,
 } from '../types';
 import { StorageManager } from '../lib/storage';
 
@@ -61,6 +64,14 @@ interface AppContextType {
   updateExam: (e: Exam) => void;
   deleteExam: (id: string) => void;
   saveExamResults: (examId: string, results: Omit<ExamResult, 'id'>[]) => void;
+  uploadedFiles: UploadedFile[];
+  addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => void;
+  deleteUploadedFile: (id: string) => void;
+  uploadFileToServer: (fileName: string, fileData: string) => Promise<{ success: boolean; url?: string; size?: number; error?: string }>;
+  feePayments: FeePayment[];
+  updateFeePayments: (updated: FeePayment[]) => Promise<boolean>;
+  smsLogs: SmsLog[];
+  addSmsLog: (log: Omit<SmsLog, 'id' | 'created_at'>) => void;
   activities: ActivityLog[];
   logAction: (module: string, action: string, details: string, type?: ActivityType) => void;
   toasts: ToastMessage[];
@@ -86,6 +97,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [presentations, setPresentations] = useState<SlidePresentation[]>(() => StorageManager.getPresentations());
   const [exams, setExams] = useState<Exam[]>(() => StorageManager.getExams());
   const [examResults, setExamResults] = useState<ExamResult[]>(() => StorageManager.getExamResults());
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(() => StorageManager.getUploadedFiles());
+  const [feePayments, setFeePayments] = useState<FeePayment[]>(() => StorageManager.getFeePayments());
+  const [smsLogs, setSmsLogs] = useState<SmsLog[]>(() => StorageManager.getSmsLogs());
   const [activities, setActivities] = useState<ActivityLog[]>(() => StorageManager.getActivities());
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -134,6 +148,186 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const res = await fetch(`/api/data?auth=${adminPassword}`);
         if (res.ok) {
           const data = await res.json();
+          
+          const localStudents = StorageManager.getStudents();
+          const localFeePayments = StorageManager.getFeePayments();
+          const localQuestions = StorageManager.getQuestions();
+          const localDocuments = StorageManager.getDocuments();
+
+          const serverStudents = data.students || [];
+          const serverFeePayments = data.feePayments || [];
+
+          // Server is considered "freshly initialized or reset" if students & feePayments lists are empty,
+          // but the client already has active browsed data (students, payments, or documents).
+          const isServerFresh = serverStudents.length === 0 && serverFeePayments.length === 0;
+          const clientHasData = localStudents.length > 0 || localFeePayments.length > 0 || (localDocuments && localDocuments.length > 0);
+
+          if (isServerFresh && clientHasData) {
+            console.log("Detecting fresh or reset server database. Syncing active client data to server to prevent data loss.");
+            
+            const localAttendance = StorageManager.getAttendance();
+            const localFolders = StorageManager.getFolders();
+            const localPresentations = StorageManager.getPresentations();
+            const localExams = StorageManager.getExams();
+            const localExamResults = StorageManager.getExamResults();
+            const localActivities = StorageManager.getActivities();
+            const localSettings = StorageManager.getSettings();
+            const localUploadedFiles = StorageManager.getUploadedFiles();
+
+            const localSmsLogs = StorageManager.getSmsLogs();
+
+            // Push all client-side collections to server sequentially
+            await syncToServer('students', localStudents);
+            await syncToServer('attendance', localAttendance);
+            await syncToServer('folders', localFolders);
+            await syncToServer('questions', localQuestions);
+            await syncToServer('documents', localDocuments);
+            await syncToServer('presentations', localPresentations);
+            await syncToServer('exams', localExams);
+            await syncToServer('examResults', localExamResults);
+            await syncToServer('activities', localActivities);
+            await syncToServer('settings', localSettings);
+            await syncToServer('uploadedFiles', localUploadedFiles);
+            await syncToServer('feePayments', localFeePayments);
+            await syncToServer('sms_logs', localSmsLogs);
+            
+            // Set state to ensure react components are fully up-to-date
+            setStudents(localStudents);
+            setAttendance(localAttendance);
+            setFolders(localFolders);
+            setQuestions(localQuestions);
+            setDocuments(localDocuments);
+            setPresentations(localPresentations);
+            setExams(localExams);
+            setExamResults(localExamResults);
+            setActivities(localActivities);
+            setSettings(localSettings);
+            setUploadedFiles(localUploadedFiles);
+            setFeePayments(localFeePayments);
+            setSmsLogs(localSmsLogs);
+            showToast("Restored all browsed data to server successfully", "success");
+          } else {
+            // Normal behavior: server contains the data, or both are empty. Server is the source of truth.
+            if (data.students) { setStudents(data.students); StorageManager.saveStudents(data.students); }
+            if (data.attendance) { setAttendance(data.attendance); StorageManager.saveAttendance(data.attendance); }
+            if (data.folders) { setFolders(data.folders); StorageManager.saveFolders(data.folders); }
+            if (data.questions) { setQuestions(data.questions); StorageManager.saveQuestions(data.questions); }
+            if (data.documents) { setDocuments(data.documents); StorageManager.saveDocuments(data.documents); }
+            if (data.presentations) { setPresentations(data.presentations); StorageManager.savePresentations(data.presentations); }
+            if (data.exams) { setExams(data.exams); StorageManager.saveExams(data.exams); }
+            if (data.examResults) { setExamResults(data.examResults); StorageManager.saveExamResults(data.examResults); }
+            if (data.activities) { setActivities(data.activities); StorageManager.saveActivities(data.activities); }
+            if (data.settings) { setSettings(data.settings); StorageManager.saveSettings(data.settings); }
+            if (data.uploadedFiles) { setUploadedFiles(data.uploadedFiles); StorageManager.saveUploadedFiles(data.uploadedFiles); }
+            if (data.feePayments) { setFeePayments(data.feePayments); StorageManager.saveFeePayments(data.feePayments); }
+            if (data.sms_logs) { setSmsLogs(data.sms_logs); StorageManager.saveSmsLogs(data.sms_logs); }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load database from server:", e);
+      }
+    };
+    loadInitialData();
+
+    // 2. Setup highly resilient, SILENT Server-Sent Events (SSE) stream for instant synchronization
+    let eventSource: EventSource | null = null;
+    
+    const connectSSE = () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      
+      eventSource = new EventSource(`/api/sync/stream?auth=${adminPassword}&clientId=${clientId}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.reset) {
+            window.location.reload();
+            return;
+          }
+          
+          const { key, data, clientId: senderClientId } = payload;
+          if (senderClientId === clientId) return; // skip self-broadcasts
+
+          switch (key) {
+            case 'students':
+              setStudents(data);
+              StorageManager.saveStudents(data);
+              break;
+            case 'attendance':
+              setAttendance(data);
+              StorageManager.saveAttendance(data);
+              break;
+            case 'folders':
+              setFolders(data);
+              StorageManager.saveFolders(data);
+              break;
+            case 'questions':
+              setQuestions(data);
+              StorageManager.saveQuestions(data);
+              break;
+            case 'documents':
+              setDocuments(data);
+              StorageManager.saveDocuments(data);
+              break;
+            case 'presentations':
+              setPresentations(data);
+              StorageManager.savePresentations(data);
+              break;
+            case 'exams':
+              setExams(data);
+              StorageManager.saveExams(data);
+              break;
+            case 'examResults':
+              setExamResults(data);
+              StorageManager.saveExamResults(data);
+              break;
+            case 'activities':
+              setActivities(data);
+              StorageManager.saveActivities(data);
+              break;
+            case 'settings':
+              setSettings(data);
+              StorageManager.saveSettings(data);
+              break;
+            case 'uploadedFiles':
+              setUploadedFiles(data);
+              StorageManager.saveUploadedFiles(data);
+              break;
+            case 'feePayments':
+              setFeePayments(data);
+              StorageManager.saveFeePayments(data);
+              break;
+            case 'sms_logs':
+              setSmsLogs(data);
+              StorageManager.saveSmsLogs(data);
+              break;
+            default:
+              break;
+          }
+        } catch (err) {
+          // completely silent error handling to prevent console clutter
+        }
+      };
+
+      // Completely silent on error - EventSource automatically reconnects under the hood
+      eventSource.onerror = () => {
+        // Silent
+      };
+    };
+
+    if (adminPassword) {
+      connectSSE();
+    }
+
+    // 3. Keep 3-second background polling interval as a bulletproof fallback for instant/real-time synchronization
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/data?auth=${adminPassword}`);
+        if (res.ok) {
+          const data = await res.json();
+          // Update all collections to maintain state synchronization with server
           if (data.students) { setStudents(data.students); StorageManager.saveStudents(data.students); }
           if (data.attendance) { setAttendance(data.attendance); StorageManager.saveAttendance(data.attendance); }
           if (data.folders) { setFolders(data.folders); StorageManager.saveFolders(data.folders); }
@@ -144,82 +338,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (data.examResults) { setExamResults(data.examResults); StorageManager.saveExamResults(data.examResults); }
           if (data.activities) { setActivities(data.activities); StorageManager.saveActivities(data.activities); }
           if (data.settings) { setSettings(data.settings); StorageManager.saveSettings(data.settings); }
-        }
-      } catch (e) {
-        console.error("Failed to load database from server:", e);
-      }
-    };
-    loadInitialData();
-
-    // 2. Setup Server-Sent Events stream
-    const eventSource = new EventSource(`/api/sync/stream?auth=${adminPassword}&clientId=${clientId}`);
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.reset) {
-          window.location.reload();
-          return;
-        }
-        
-        const { key, data, clientId: senderClientId } = payload;
-        if (senderClientId === clientId) return; // skip self-broadcasts
-
-        switch (key) {
-          case 'students':
-            setStudents(data);
-            StorageManager.saveStudents(data);
-            break;
-          case 'attendance':
-            setAttendance(data);
-            StorageManager.saveAttendance(data);
-            break;
-          case 'folders':
-            setFolders(data);
-            StorageManager.saveFolders(data);
-            break;
-          case 'questions':
-            setQuestions(data);
-            StorageManager.saveQuestions(data);
-            break;
-          case 'documents':
-            setDocuments(data);
-            StorageManager.saveDocuments(data);
-            break;
-          case 'presentations':
-            setPresentations(data);
-            StorageManager.savePresentations(data);
-            break;
-          case 'exams':
-            setExams(data);
-            StorageManager.saveExams(data);
-            break;
-          case 'examResults':
-            setExamResults(data);
-            StorageManager.saveExamResults(data);
-            break;
-          case 'activities':
-            setActivities(data);
-            StorageManager.saveActivities(data);
-            break;
-          case 'settings':
-            setSettings(data);
-            StorageManager.saveSettings(data);
-            break;
-          default:
-            break;
+          if (data.uploadedFiles) { setUploadedFiles(data.uploadedFiles); StorageManager.saveUploadedFiles(data.uploadedFiles); }
+          if (data.feePayments) { setFeePayments(data.feePayments); StorageManager.saveFeePayments(data.feePayments); }
+          if (data.sms_logs) { setSmsLogs(data.sms_logs); StorageManager.saveSmsLogs(data.sms_logs); }
         }
       } catch (err) {
-        console.error("Error handling SSE message:", err);
+        // Silent error handling in background polling to keep console perfectly clean
       }
-    };
-
-    eventSource.onerror = (err) => {
-      console.error("SSE connection error. Reconnecting...", err);
-    };
+    }, 3000);
 
     return () => {
-      eventSource.close();
+      if (eventSource) {
+        (eventSource as EventSource).close();
+      }
+      clearInterval(pollInterval);
     };
   }, [adminPassword, clientId]);
 
@@ -250,17 +382,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.darkMode]);
 
-  // One-time execution to delete all students as requested by user
-  useEffect(() => {
-    const isCleared = localStorage.getItem('msc_students_cleared_by_user');
-    if (!isCleared) {
-      StorageManager.saveStudents([]);
-      StorageManager.saveAttendance([]);
-      setStudents([]);
-      setAttendance([]);
-      localStorage.setItem('msc_students_cleared_by_user', 'true');
-    }
-  }, []);
 
   const runAutoInactivityCheck = (currentStudents: Student[], currentAttendance: AttendanceRecord[]) => {
     const today = new Date();
@@ -342,6 +463,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Secure Automatic Orphan Cleanup: Purge any attendance or fee payments for non-existent students
+  useEffect(() => {
+    if (students.length === 0) {
+      if (attendance.length > 0) {
+        setAttendance([]);
+        StorageManager.saveAttendance([]);
+        syncToServer('attendance', []);
+      }
+      if (feePayments.length > 0) {
+        setFeePayments([]);
+        StorageManager.saveFeePayments([]);
+        syncToServer('feePayments', []);
+      }
+    } else {
+      const studentIds = new Set(students.map((s) => s.id));
+      const hasOrphanedAttendance = attendance.some((a) => !studentIds.has(a.studentId));
+      const hasOrphanedPayments = feePayments.some((p) => !studentIds.has(p.studentId));
+
+      if (hasOrphanedAttendance || hasOrphanedPayments) {
+        if (hasOrphanedAttendance) {
+          const cleanAttendance = attendance.filter((a) => studentIds.has(a.studentId));
+          setAttendance(cleanAttendance);
+          StorageManager.saveAttendance(cleanAttendance);
+          syncToServer('attendance', cleanAttendance);
+        }
+        if (hasOrphanedPayments) {
+          const cleanPayments = feePayments.filter((p) => studentIds.has(p.studentId));
+          setFeePayments(cleanPayments);
+          StorageManager.saveFeePayments(cleanPayments);
+          syncToServer('feePayments', cleanPayments);
+        }
+      }
+    }
+  }, [students]);
+
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
     const id = 'toast-' + Math.random().toString(36).substr(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -409,10 +565,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAttendance(filteredAttendance);
     StorageManager.saveAttendance(filteredAttendance);
 
+    // Also clear references in fee payments
+    const filteredFeePayments = feePayments.filter((p) => p.studentId !== id);
+    setFeePayments(filteredFeePayments);
+    StorageManager.saveFeePayments(filteredFeePayments);
+
     logAction('Students', 'Student Deleted', `Removed student: ${student.name}.`, ActivityType.Danger);
     showToast(`Removed student ${student.name}`, 'warning');
     syncToServer('students', updated);
     syncToServer('attendance', filteredAttendance);
+    syncToServer('feePayments', filteredFeePayments);
   };
 
   const duplicateStudent = (id: string) => {
@@ -436,10 +598,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAttendance(filteredAttendance);
     StorageManager.saveAttendance(filteredAttendance);
 
+    // Clean up fee payments
+    const filteredFeePayments = feePayments.filter((p) => !ids.includes(p.studentId));
+    setFeePayments(filteredFeePayments);
+    StorageManager.saveFeePayments(filteredFeePayments);
+
     logAction('Students', 'Bulk Delete', `Deleted ${ids.length} students in a bulk operation.`, ActivityType.Danger);
     showToast(`Successfully deleted ${ids.length} students`, 'warning');
     syncToServer('students', updated);
     syncToServer('attendance', filteredAttendance);
+    syncToServer('feePayments', filteredFeePayments);
   };
 
   // Attendance Actions
@@ -656,6 +824,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     syncToServer('examResults', updated);
   };
 
+  // Uploaded Files Actions
+  const addUploadedFile = (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => {
+    const id = 'file-' + Date.now();
+    const newFile: UploadedFile = {
+      ...file,
+      id,
+      uploadedAt: new Date().toISOString(),
+    };
+    const updated = [newFile, ...uploadedFiles];
+    setUploadedFiles(updated);
+    StorageManager.saveUploadedFiles(updated);
+    logAction('Document Manager', 'File Uploaded', `Registered document: "${file.name}" to database.`, ActivityType.Success);
+    showToast(`File "${file.name}" registered!`);
+    syncToServer('uploadedFiles', updated);
+  };
+
+  const deleteUploadedFile = (id: string) => {
+    const file = uploadedFiles.find((f) => f.id === id);
+    if (!file) return;
+    const updated = uploadedFiles.filter((f) => f.id !== id);
+    setUploadedFiles(updated);
+    StorageManager.saveUploadedFiles(updated);
+    logAction('Document Manager', 'File Deleted', `Removed document record: "${file.name}".`, ActivityType.Danger);
+    showToast(`Removed file "${file.name}"`, 'warning');
+    syncToServer('uploadedFiles', updated);
+  };
+
+  const uploadFileToServer = async (fileName: string, fileData: string): Promise<{ success: boolean; url?: string; size?: number; error?: string }> => {
+    try {
+      const res = await fetch(`/api/upload?auth=${adminPassword}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': adminPassword,
+        },
+        body: JSON.stringify({ fileName, fileData }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        return { success: true, url: result.url, size: result.size };
+      } else {
+        const errorData = await res.json();
+        return { success: false, error: errorData.error || 'Failed to upload' };
+      }
+    } catch (err: any) {
+      console.error('File upload error:', err);
+      return { success: false, error: err.message || 'Network error uploading file' };
+    }
+  };
+
   const resetAllData = async () => {
     if (adminPassword === '2010636075') {
       try {
@@ -674,6 +892,82 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       StorageManager.resetDatabase();
     }
+  };
+
+  const updateFeePayments = async (updated: FeePayment[]): Promise<boolean> => {
+    // Validate constraint client-side first
+    for (const oldPay of feePayments) {
+      if (oldPay.status === 'Paid') {
+        const incoming = updated.find(p => p.id === oldPay.id);
+        if (!incoming) {
+          showToast('Strict Security Constraint: Locked payments cannot be deleted.', 'error');
+          return false;
+        }
+        if (
+          incoming.status !== 'Paid' ||
+          incoming.amount !== oldPay.amount ||
+          incoming.paidAmount !== oldPay.paidAmount ||
+          incoming.paymentDate !== oldPay.paymentDate ||
+          incoming.studentId !== oldPay.studentId ||
+          incoming.month !== oldPay.month
+        ) {
+          showToast('Strict Security Constraint: Locked payments cannot be modified.', 'error');
+          return false;
+        }
+      }
+    }
+
+    setFeePayments(updated);
+    StorageManager.saveFeePayments(updated);
+
+    try {
+      const res = await fetch(`/api/data?auth=${adminPassword}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': adminPassword,
+        },
+        body: JSON.stringify({ key: 'feePayments', data: updated, clientId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Server error updating fee payments');
+      }
+      return true;
+    } catch (e: any) {
+      console.error('Failed to update fee payments on server:', e);
+      const reverted = StorageManager.getFeePayments();
+      setFeePayments(reverted);
+      showToast(`Sync Error: ${e.message || 'Could not sync with server.'}`, 'error');
+      return false;
+    }
+  };
+
+  const addSmsLog = (log: Omit<SmsLog, 'id' | 'created_at'>) => {
+    const id = 'sms-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+    const newLog: SmsLog = {
+      ...log,
+      id,
+      created_at: new Date().toISOString(),
+    };
+    setSmsLogs((prev) => {
+      const updated = [newLog, ...prev];
+      StorageManager.saveSmsLogs(updated);
+      
+      // Sync with Node backend database.json
+      fetch(`/api/data?auth=${adminPassword}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': adminPassword,
+        },
+        body: JSON.stringify({ key: 'sms_logs', data: updated, clientId }),
+      }).catch(err => {
+        console.error('Failed to sync sms log to server:', err);
+      });
+
+      return updated;
+    });
   };
 
   return (
@@ -713,6 +1007,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateExam,
         deleteExam,
         saveExamResults,
+        uploadedFiles,
+        addUploadedFile,
+        deleteUploadedFile,
+        uploadFileToServer,
+        feePayments,
+        updateFeePayments,
+        smsLogs,
+        addSmsLog,
         activities,
         logAction,
         toasts,

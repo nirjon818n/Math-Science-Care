@@ -11,7 +11,6 @@ import {
   CheckSquare,
   FolderOpen,
   FileText,
-  Presentation,
   Search,
   History,
   Settings,
@@ -21,6 +20,9 @@ import {
   Sparkles,
   Award,
   LogOut,
+  Coins,
+  MessageSquare,
+  GraduationCap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -39,7 +41,9 @@ export default function Sidebar({ onOpenSearch }: SidebarProps) {
     { name: 'Attendance', icon: CheckSquare },
     { name: 'Exam Portal', icon: Award },
     { name: 'Question Bank', icon: FolderOpen },
-    { name: 'Slide Builder', icon: Presentation },
+    { name: 'Tuition Fee Tracker', icon: Coins },
+    { name: 'Document Manager', icon: FileText },
+    { name: 'SMS Dashboard', icon: MessageSquare },
     { name: 'Search', icon: Search, onClick: onOpenSearch },
     { name: 'Activity History', icon: History },
     { name: 'Settings', icon: Settings },
@@ -65,14 +69,25 @@ export default function Sidebar({ onOpenSearch }: SidebarProps) {
     }
   };
 
+  const customLogoUrl = (settings.logoUrl && settings.logoUrl !== '/app_logo.jpg' && !settings.logoUrl.includes('unsplash.com')) ? settings.logoUrl : '';
+
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between py-4 select-none">
       {/* Brand Header */}
       <div>
         <div className={`flex items-center gap-3 px-4 mb-8 ${isCollapsed ? 'justify-center' : ''}`}>
           <div className="relative">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-800 to-slate-900 border border-slate-700/60 flex items-center justify-center shadow-lg`}>
-              <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse-slow" />
+            <div className={`w-10 h-10 rounded-xl bg-slate-900 border border-slate-700/60 flex items-center justify-center shadow-lg overflow-hidden shrink-0`}>
+              {customLogoUrl ? (
+                <img 
+                  src={customLogoUrl} 
+                  alt={settings.instituteName} 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <GraduationCap className="w-5 h-5 text-emerald-400" />
+              )}
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border border-slate-950"></div>
           </div>
@@ -178,8 +193,19 @@ export default function Sidebar({ onOpenSearch }: SidebarProps) {
     <>
       {/* Mobile Top Bar */}
       <div className="lg:hidden h-14 bg-slate-900/80 backdrop-blur border-b border-slate-800/60 flex items-center justify-between px-4 fixed top-0 left-0 right-0 z-30">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-emerald-400" />
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700/60 flex items-center justify-center shadow overflow-hidden shrink-0">
+            {customLogoUrl ? (
+              <img 
+                src={customLogoUrl} 
+                alt={settings.instituteName} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <GraduationCap className="w-4 h-4 text-emerald-400" />
+            )}
+          </div>
           <span className="font-display font-bold text-slate-100 text-sm tracking-tight">
             {settings.instituteName}
           </span>

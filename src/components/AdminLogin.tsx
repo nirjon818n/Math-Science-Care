@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, ShieldAlert, CheckCircle, Sparkles } from 'lucide-react';
+import { Lock, Eye, EyeOff, ShieldAlert, CheckCircle, Sparkles, GraduationCap } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface AdminLoginProps {
@@ -66,8 +66,8 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         className="w-full max-w-md p-8 m-4 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-3xl shadow-2xl relative z-10"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mb-4 text-emerald-400 shadow-lg shadow-emerald-500/5">
-            <Lock className="w-6 h-6 animate-pulse" />
+          <div className="w-16 h-16 bg-slate-900 border border-slate-700/80 rounded-2xl flex items-center justify-center mb-4 shadow-xl overflow-hidden ring-4 ring-emerald-500/10 shrink-0">
+            <GraduationCap className="w-8 h-8 text-emerald-400" />
           </div>
           <h1 className="text-2xl font-display font-extrabold text-slate-100 tracking-tight flex items-center gap-1.5">
             Admin Access Gateway

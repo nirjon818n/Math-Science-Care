@@ -186,6 +186,10 @@ export default function QuestionBankView() {
   // Selected Item State (For inspector panel)
   const [selectedFolder, setSelectedFolder] = useState<FMFolder | null>(null);
   const [selectedFile, setSelectedFile] = useState<FMFile | null>(null);
+  
+  // Confirmation State for Delete Operations
+  const [deleteConfirmType, setDeleteConfirmType] = useState<'folder' | 'file' | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Modals
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
@@ -379,28 +383,26 @@ export default function QuestionBankView() {
         return;
       }
 
-      if (confirm(`Are you sure you want to delete folder "${folder?.name}" and all its contents? This action is irreversible.`)) {
-        // Recursive Delete helper
-        const foldersToDelete = [id];
-        const filesToDelete: string[] = [];
+      // Recursive Delete helper
+      const foldersToDelete = [id];
+      const filesToDelete: string[] = [];
 
-        const findChildren = (fid: string) => {
-          // Add files in this folder
-          files.filter(f => f.parentId === fid).forEach(f => filesToDelete.push(f.id));
-          // Recurse for child folders
-          folders.filter(fol => fol.parentId === fid).forEach(fol => {
-            foldersToDelete.push(fol.id);
-            findChildren(fol.id);
-          });
-        };
+      const findChildren = (fid: string) => {
+        // Add files in this folder
+        files.filter(f => f.parentId === fid).forEach(f => filesToDelete.push(f.id));
+        // Recurse for child folders
+        folders.filter(fol => fol.parentId === fid).forEach(fol => {
+          foldersToDelete.push(fol.id);
+          findChildren(fol.id);
+        });
+      };
 
-        findChildren(id);
+      findChildren(id);
 
-        setFolders(prev => prev.filter(f => !foldersToDelete.includes(f.id)));
-        setFiles(prev => prev.filter(f => !filesToDelete.includes(f.id)));
-        setSelectedFolder(null);
-        showToast('Folder deleted successfully!');
-      }
+      setFolders(prev => prev.filter(f => !foldersToDelete.includes(f.id)));
+      setFiles(prev => prev.filter(f => !filesToDelete.includes(f.id)));
+      setSelectedFolder(null);
+      showToast('Folder deleted successfully!');
     } else {
       const file = files.find(f => f.id === id);
       if (file?.isSystem) {
@@ -408,11 +410,9 @@ export default function QuestionBankView() {
         return;
       }
 
-      if (confirm(`Are you sure you want to delete "${file?.name}"?`)) {
-        setFiles(prev => prev.filter(f => f.id !== id));
-        setSelectedFile(null);
-        showToast('File deleted successfully!');
-      }
+      setFiles(prev => prev.filter(f => f.id !== id));
+      setSelectedFile(null);
+      showToast('File deleted successfully!');
     }
   };
 
@@ -933,19 +933,46 @@ export default function QuestionBankView() {
                 <span>Rename</span>
               </button>
 
-              <button
-                disabled={selectedFolder.isSystem}
-                onClick={() => handleDeleteItem('folder', selectedFolder.id)}
-                className={`flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-xl border transition ${
-                  selectedFolder.isSystem
-                    ? 'opacity-40 cursor-not-allowed border-slate-850 text-slate-600'
-                    : 'border-rose-500/20 hover:bg-rose-500/10 text-rose-400'
-                }`}
-                title="Delete Folder"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
-              </button>
+              {deleteConfirmId === selectedFolder.id && deleteConfirmType === 'folder' ? (
+                <div className="flex gap-1.5 w-full">
+                  <button
+                    onClick={() => {
+                      handleDeleteItem('folder', selectedFolder.id);
+                      setDeleteConfirmId(null);
+                      setDeleteConfirmType(null);
+                    }}
+                    className="flex-1 py-2 text-[11px] font-extrabold rounded-xl bg-rose-600 hover:bg-rose-700 text-slate-100 transition cursor-pointer"
+                  >
+                    Confirm?
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeleteConfirmId(null);
+                      setDeleteConfirmType(null);
+                    }}
+                    className="px-3 py-2 text-[11px] font-medium rounded-xl border border-slate-800 hover:bg-slate-800 text-slate-300 transition cursor-pointer"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  disabled={selectedFolder.isSystem}
+                  onClick={() => {
+                    setDeleteConfirmId(selectedFolder.id);
+                    setDeleteConfirmType('folder');
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-xl border transition ${
+                    selectedFolder.isSystem
+                      ? 'opacity-40 cursor-not-allowed border-slate-850 text-slate-600'
+                      : 'border-rose-500/20 hover:bg-rose-500/10 text-rose-400'
+                  }`}
+                  title="Delete Folder"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              )}
             </div>
           </div>
         ) : selectedFile ? (
@@ -1003,19 +1030,46 @@ export default function QuestionBankView() {
                   <span>Rename</span>
                 </button>
 
-                <button
-                  disabled={selectedFile.isSystem}
-                  onClick={() => handleDeleteItem('file', selectedFile.id)}
-                  className={`flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-xl border transition ${
-                    selectedFile.isSystem
-                      ? 'opacity-40 cursor-not-allowed border-slate-850 text-slate-600'
-                      : 'border-rose-500/20 hover:bg-rose-500/10 text-rose-400'
-                  }`}
-                  title="Delete File"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete</span>
-                </button>
+                {deleteConfirmId === selectedFile.id && deleteConfirmType === 'file' ? (
+                  <div className="flex gap-1.5 w-full">
+                    <button
+                      onClick={() => {
+                        handleDeleteItem('file', selectedFile.id);
+                        setDeleteConfirmId(null);
+                        setDeleteConfirmType(null);
+                      }}
+                      className="flex-1 py-2 text-[11px] font-extrabold rounded-xl bg-rose-600 hover:bg-rose-700 text-slate-100 transition cursor-pointer"
+                    >
+                      Confirm?
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeleteConfirmId(null);
+                        setDeleteConfirmType(null);
+                      }}
+                      className="px-3 py-2 text-[11px] font-medium rounded-xl border border-slate-800 hover:bg-slate-800 text-slate-300 transition cursor-pointer"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    disabled={selectedFile.isSystem}
+                    onClick={() => {
+                      setDeleteConfirmId(selectedFile.id);
+                      setDeleteConfirmType('file');
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-xl border transition ${
+                      selectedFile.isSystem
+                        ? 'opacity-40 cursor-not-allowed border-slate-850 text-slate-600'
+                        : 'border-rose-500/20 hover:bg-rose-500/10 text-rose-400'
+                    }`}
+                    title="Delete File"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
