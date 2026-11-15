@@ -37,13 +37,13 @@ const maskKey = (key: string) => {
 
 // Read configuration from environment variables with bcrypt hashing
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || 
-  bcrypt.hashSync(process.env.ADMIN_PASSWORD || "2010636075", 10);
+  bcrypt.hashSync(process.env.ADMIN_PASSWORD || '', 10);
 
 const rawApiKey = process.env.AUTOMAS_SMS_API_KEY;
-let AUTOMAS_SMS_API_KEY = cleanEnvString(rawApiKey, "510b17b71592af35dac9cba3d019dc30");
-// If environment variable has the invalid key 056262a0eba72b8d9f7b14482f38a6d8, override with working key
-if (AUTOMAS_SMS_API_KEY === "056262a0eba72b8d9f7b14482f38a6d8" || !AUTOMAS_SMS_API_KEY) {
-  AUTOMAS_SMS_API_KEY = "510b17b71592af35dac9cba3d019dc30";
+let AUTOMAS_SMS_API_KEY = cleanEnvString(rawApiKey, '');
+// If environment variable has the invalid key '', override with working key
+if (AUTOMAS_SMS_API_KEY === '' || !AUTOMAS_SMS_API_KEY) {
+  AUTOMAS_SMS_API_KEY = '';
 }
 
 const rawSenderId = process.env.AUTOMAS_SMS_SENDER_ID;
@@ -61,11 +61,11 @@ console.log(`[SMS Config] AUTOMAS_SMS_SENDER_ID active: ${maskKey(AUTOMAS_SMS_SE
 function verifyPassword(password: string | undefined | null): boolean {
   if (!password || typeof password !== 'string') return false;
 
-  const envPass = process.env.ADMIN_PASSWORD || "2010636075";
+  const envPass = process.env.ADMIN_PASSWORD || '';
   const envHash = process.env.ADMIN_PASSWORD_HASH;
 
   // 1. Direct match with plain text password or fallback default
-  if (password === envPass || password === "2010636075") {
+  if (password === envPass || password === '') {
     return true;
   }
 
